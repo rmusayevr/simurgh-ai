@@ -9,19 +9,19 @@ GET /admin/token-usage
 from datetime import datetime, timezone, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select, func, col
-
-from app.api.v1.dependencies import get_current_superuser, get_session
-from app.models.token_usage import TokenUsageRecord
-from app.models.user import User
 from app.schemas.token_usage import (
     DailyStat,
     OperationStat,
     TokenUsageSummary,
     UserStat,
 )
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import select, func, col
+
+from app.api.v1.dependencies import get_session, get_current_superuser
+from app.models.token_usage import TokenUsageRecord
+from app.models.user import User
 
 router = APIRouter(tags=["admin"])
 

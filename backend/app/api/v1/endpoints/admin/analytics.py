@@ -11,7 +11,9 @@ from fastapi import APIRouter, Depends
 from sqlmodel import select, func
 from sqlmodel.ext.asyncio.session import AsyncSession
 
-from app.api.v1.dependencies import get_session
+from typing import Annotated
+from app.api.v1.dependencies import get_session, get_current_superuser
+from app.models.user import User
 from app.models.project import HistoricalDocument
 from app.models.proposal import Proposal
 from app.models.stakeholder import Stakeholder
@@ -59,6 +61,7 @@ async def get_rag_verification(
 
 @router.get("/analytics")
 async def get_system_analytics(
+    current_user: Annotated[User, Depends(get_current_superuser)],
     session: AsyncSession = Depends(get_session),
 ):
     """
