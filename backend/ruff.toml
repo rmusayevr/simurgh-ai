@@ -1,0 +1,8 @@
+# Exclude the auto-generated alembic versions directory from general checks
+exclude = [
+    "alembic/versions/*.py"
+]
+
+[lint]
+# Ignore common migration violations like imports not being at the top
+extend-ignore = ["E402"]

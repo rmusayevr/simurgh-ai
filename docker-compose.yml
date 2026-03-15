@@ -1,0 +1,81 @@
+# ── Development compose ───────────────────────────────────────────────────────
+# Usage: docker compose up
+# Hot-reload enabled. Backend mounts ./backend as a volume.
+# Frontend runs via Vite dev server (npm run dev) outside Docker.
+
+x-backend-environment: &backend-environment
+  DATABASE_URL: "postgresql+asyncpg://postgres:hero_password@db:5432/hero_db"
+  REDIS_URL: "redis://redis:6379/0"
+  SECRET_KEY: "${SECRET_KEY}"
+  ENCRYPTION_KEY: "${ENCRYPTION_KEY}"
+  ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
+  FRONTEND_URL: "${FRONTEND_URL}"
+  BACKEND_CORS_ORIGINS: "${BACKEND_CORS_ORIGINS}"
+  SMTP_SERVER: "${SMTP_SERVER:-}"
+  SMTP_PORT: "${SMTP_PORT:-587}"
+  SMTP_USER: "${SMTP_USER:-}"
+  SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+  EMAIL_FROM_EMAIL: "${EMAIL_FROM_EMAIL:-noreply@simurghai.com}"
+  EMAIL_FROM_NAME: "${EMAIL_FROM_NAME:-Thesis Study}"
+  SKIP_EMAIL_VERIFICATION: "${SKIP_EMAIL_VERIFICATION:-false}"
+  THESIS_MODE: "${THESIS_MODE:-false}"
+  ENVIRONMENT: "development"
+  DEBUG: "true"
+
+services:
+  backend:
+    build: ./backend
+    container_name: hero_backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment: *backend-environment
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./backend:/app
+      # Keep the venv from the image — don't overwrite with host mount
+      - /app/.venv
+
+  celery_worker:
+    build: ./backend
+    container_name: hero_worker
+    command: celery -A app.core.celery_app.celery_app worker -l info -Q vectorization,proposals,default --concurrency=2
+    environment: *backend-environment
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      - ./backend:/app
+      - /app/.venv
+
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: hero_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: hero_password
+      POSTGRES_DB: hero_db
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hero_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: hero_redis
+    ports:
+      - "127.0.0.1:6379:6379"
+
+volumes:
+  postgres_data:

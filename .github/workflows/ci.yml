@@ -1,0 +1,394 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs for the same branch so pushes don't queue up
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Backend: Lint ─────────────────────────────────────────────────────────────
+  backend-lint:
+    name: Backend — Lint & Format (Ruff)
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ruff
+        run: pip install ruff==0.14.13
+
+      - name: Check lint
+        run: ruff check .
+
+      - name: Check formatting
+        run: ruff format . --check
+
+  # ── Backend: Unit Tests ───────────────────────────────────────────────────────
+  backend-unit:
+    name: Backend — Unit Tests
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      SECRET_KEY: ci-secret-key-not-used-in-tests
+      ENCRYPTION_KEY: n5RXMBwMj7ftLbGLAHHZqqR_Y5KTnoIETjolWK1oDD4=
+      ANTHROPIC_API_KEY: ci-placeholder-not-called-in-unit-tests
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/test_db
+      REDIS_URL: redis://localhost:6379/0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: backend/.venv
+          key: venv-${{ runner.os }}-py3.12-${{ hashFiles('backend/pyproject.toml') }}
+          restore-keys: |
+            venv-${{ runner.os }}-py3.12-
+
+      - name: Install dependencies
+        run: poetry install --no-root
+
+      - name: Run unit tests
+        run: poetry run pytest tests/unit/ -v --tb=short -m "not slow"
+
+  # ── Backend: API Tests ────────────────────────────────────────────────────────
+  #
+  # These tests use FastAPI's ASGI transport (no real server) with mocked DB
+  # sessions, so they only need Redis for rate-limit middleware health checks.
+  # No PostgreSQL service is required.
+  backend-api:
+    name: Backend — API Tests
+    runs-on: ubuntu-latest
+    needs: [backend-lint, backend-unit]
+
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      SECRET_KEY: ci-secret-key-for-api-tests
+      ENCRYPTION_KEY: n5RXMBwMj7ftLbGLAHHZqqR_Y5KTnoIETjolWK1oDD4=
+      ANTHROPIC_API_KEY: ci-placeholder-not-called-in-api-tests
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/test_db
+      REDIS_URL: redis://localhost:6379/0
+      RATE_LIMIT_ENABLED: "false"
+      ENVIRONMENT: testing
+      SKIP_EMAIL_VERIFICATION: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: backend/.venv
+          key: venv-${{ runner.os }}-py3.12-${{ hashFiles('backend/pyproject.toml') }}
+          restore-keys: |
+            venv-${{ runner.os }}-py3.12-
+
+      - name: Install dependencies
+        run: poetry install --no-root
+
+      - name: Run API tests
+        run: poetry run pytest tests/api/ -v --tb=short
+
+  # ── Backend: Integration Tests ────────────────────────────────────────────────
+  #
+  # These tests hit a real PostgreSQL + Redis. Alembic migrations are applied
+  # once before the suite runs. Each test rolls back via SAVEPOINT (see
+  # tests/integration/conftest.py) so no cleanup step is needed.
+  backend-integration:
+    name: Backend — Integration Tests
+    runs-on: ubuntu-latest
+    needs: [backend-lint, backend-unit]
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      SECRET_KEY: ci-secret-key-for-integration-tests
+      ENCRYPTION_KEY: n5RXMBwMj7ftLbGLAHHZqqR_Y5KTnoIETjolWK1oDD4=
+      ANTHROPIC_API_KEY: ci-placeholder-not-called-in-integration-tests
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/test_db
+      TEST_DATABASE_URL: postgresql+asyncpg://postgres:postgres@localhost:5432/test_db
+      REDIS_URL: redis://localhost:6379/0
+      RATE_LIMIT_ENABLED: "false"
+      ENVIRONMENT: testing
+      SKIP_EMAIL_VERIFICATION: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: backend/.venv
+          key: venv-${{ runner.os }}-py3.12-${{ hashFiles('backend/pyproject.toml') }}
+          restore-keys: |
+            venv-${{ runner.os }}-py3.12-
+
+      - name: Install dependencies
+        run: poetry install --no-root
+
+      - name: Enable pgvector extension
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d test_db \
+            -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+      - name: Apply Alembic migrations
+        run: poetry run alembic upgrade head
+
+      - name: Run integration tests
+        run: poetry run pytest tests/integration/ -v --tb=short -m "not slow"
+
+  # ── Frontend: Lint & Type Check ───────────────────────────────────────────────
+  frontend-lint:
+    name: Frontend — Lint & Type Check
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+  # ── Frontend: Build ───────────────────────────────────────────────────────────
+  #
+  # Runs `tsc -b && vite build` (the production build script) to catch any
+  # bundler errors, missing env vars, or import issues that type-check alone
+  # won't surface. The dist/ artifact is uploaded so it can be inspected or
+  # reused in a future deploy job without rebuilding.
+  frontend-build:
+    name: Frontend — Production Build
+    runs-on: ubuntu-latest
+    needs: [frontend-lint]
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Production build
+        run: npm run build
+        env:
+          # Vite replaces these at build time; set safe CI values so the build
+          # doesn't fail on missing VITE_ env vars
+          VITE_API_URL: http://localhost:8000
+
+      - name: Upload dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist-${{ github.sha }}
+          path: frontend/dist/
+          retention-days: 7
+
+  # ── CI Gate ───────────────────────────────────────────────────────────────────
+  #
+  # A single status check that branch-protection rules can target.
+  # If any required job fails, this job fails — no need to list every job name
+  # in the branch protection "required status checks" list.
+  ci:
+    name: CI — All checks passed
+    runs-on: ubuntu-latest
+    needs:
+      - backend-lint
+      - backend-unit
+      - backend-api
+      - backend-integration
+      - frontend-lint
+      - frontend-build
+
+    steps:
+      - name: All checks passed
+        run: echo "All CI jobs completed successfully."
+
+  # ── Publish Docker Images ─────────────────────────────────────────────────────
+  #
+  # Triggers only on version tags (v1.0.0, v0.1.0, etc.) — never on branch pushes
+  # or PRs. Requires all CI checks to pass first via the `ci` gate job.
+  #
+  # Publishes two images to GitHub Container Registry (GHCR):
+  #   ghcr.io/<owner>/ai-stakeholder-agent-backend:<tag>
+  #   ghcr.io/<owner>/ai-stakeholder-agent-frontend:<tag>
+  #
+  # Each image is tagged with both the exact version (v0.1.0) and `latest`
+  # so users can pin to a specific release or always pull the newest stable build.
+  #
+  # How to publish a release:
+  #   git tag v0.1.0
+  #   git push origin v0.1.0
+  publish-docker:
+    name: Publish — Docker images to GHCR
+    runs-on: ubuntu-latest
+    needs: [ci]
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version tag
+        id: tag
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ── Backend image ──────────────────────────────────────────────────────────
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          target: runtime
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/ai-stakeholder-agent-backend:${{ steps.tag.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/ai-stakeholder-agent-backend:latest
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+
+      # ── Frontend image ─────────────────────────────────────────────────────────
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile.prod
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/ai-stakeholder-agent-frontend:${{ steps.tag.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/ai-stakeholder-agent-frontend:latest
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend

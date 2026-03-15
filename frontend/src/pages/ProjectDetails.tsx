@@ -1,0 +1,292 @@
+import { useCallback, useEffect, useState } from 'react';
+import { useParams, useNavigate, useLocation, Outlet } from 'react-router-dom';
+import {
+    ArrowLeft, Plus, Users, FileText, Bot, Loader2
+} from 'lucide-react';
+import { api } from '../api/client';
+import { useAuth } from '../context/AuthContext';
+import { hasPermission } from '../config/permissions';
+import { AddStakeholderModal } from '../components/modals/AddStakeholderModal';
+import { DocumentsTab } from '../components/tabs/DocumentsTab';
+import { GeneratorTab } from '../components/tabs/GeneratorTab';
+import { StakeholderRow } from '../components/StakeholderRow';
+import { MendelowMatrix } from '../components/MendelowMatrix';
+import type { Project, Stakeholder, ProjectRole } from '../types';
+
+// ─── Tab definition ────────────────────────────────────────────────────────────
+type TabId = 'stakeholders' | 'context' | 'generator';
+
+// ─── Main component ────────────────────────────────────────────────────────────
+interface Tab {
+    id: TabId;
+    label: string;
+    icon: React.ReactNode;
+    minRole?: ProjectRole;
+}
+
+const TABS: Tab[] = [
+    { id: 'context', label: 'Context Files', icon: <FileText size={16} /> },
+    { id: 'generator', label: 'AI Generator', icon: <Bot size={16} /> },
+    { id: 'stakeholders', label: 'Stakeholders', icon: <Users size={16} /> },
+];
+
+// ─── TabButton ─────────────────────────────────────────────────────────────────
+interface TabButtonProps {
+    id: TabId;
+    label: string;
+    icon: React.ReactNode;
+    active: boolean;
+    onClick: (id: TabId) => void;
+}
+
+const TabButton = ({ id, label, icon, active, onClick }: TabButtonProps) => (
+    <button
+        onClick={() => onClick(id)}
+        className={`flex items-center gap-2 pb-4 px-2 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${active
+            ? 'text-indigo-600 border-indigo-600'
+            : 'text-slate-500 border-transparent hover:text-slate-800'
+            }`}
+    >
+        {icon} {label}
+    </button>
+);
+
+// ─── Derive active tab from current URL pathname ───────────────────────────────
+const getActiveTabFromPath = (pathname: string): TabId => {
+    if (pathname.includes('/stakeholders')) return 'stakeholders';
+    if (pathname.includes('/generator')) return 'generator';
+    return 'context';
+};
+
+// ─── Main component ────────────────────────────────────────────────────────────
+export const ProjectDetails = () => {
+    const { id } = useParams<{ id: string }>();
+    const navigate = useNavigate();
+    const location = useLocation();
+    const { user } = useAuth();
+
+    // ── State ──────────────────────────────────────────────────────────────────
+    const [project, setProject] = useState<Project | null>(null);
+    const [stakeholders, setStakeholders] = useState<Stakeholder[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState(false);
+
+    const [editingStakeholder, setEditingStakeholder] = useState<Stakeholder | null>(null);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
+    // ── Active tab — derived from URL path ─────────────────────────────────────
+    const activeTab = getActiveTabFromPath(location.pathname);
+
+    const setActiveTab = useCallback((tab: TabId) => {
+        navigate(`/project/${id}/${tab}`, { replace: true });
+    }, [navigate, id]);
+
+    // ── Derived permissions ────────────────────────────────────────────────────
+    const currentUserLink = project?.stakeholder_links?.find(l => l.user_id === user?.id);
+    const currentRole: ProjectRole =
+        project?.owner_id === user?.id
+            ? 'OWNER'
+            : (currentUserLink?.role ?? 'VIEWER');
+
+    const isOwnerOrAdmin = currentRole === 'OWNER' || currentRole === 'ADMIN';
+    const canEditContent = hasPermission(currentRole, 'EDIT_CONTENT');
+
+    // ── Data loading ───────────────────────────────────────────────────────────
+    const loadData = useCallback(async () => {
+        if (!id) return;
+        setLoading(true);
+        setLoadError(false);
+        try {
+            const [projRes, stakRes] = await Promise.all([
+                api.get<Project>(`/projects/${id}`),
+                api.get<Stakeholder[]>(`/stakeholders/project/${id}`),
+            ]);
+            setProject(projRes.data);
+            setStakeholders(stakRes.data);
+        } catch {
+            setLoadError(true);
+        } finally {
+            setLoading(false);
+        }
+    }, [id]);
+
+    useEffect(() => { loadData(); }, [loadData]);
+
+    // ── Stakeholder CRUD callbacks ─────────────────────────────────────────────
+    const handleEdit = useCallback((person: Stakeholder) => {
+        setEditingStakeholder(person);
+        setIsAddModalOpen(true);
+    }, []);
+
+    const handleDeleteSuccess = useCallback((deletedId: number) => {
+        setStakeholders(prev => prev.filter(s => s.id !== deletedId));
+    }, []);
+
+    const handleModalSuccess = useCallback((savedPerson: Stakeholder) => {
+        setStakeholders(prev =>
+            editingStakeholder
+                ? prev.map(s => s.id === savedPerson.id ? savedPerson : s)
+                : [...prev, savedPerson]
+        );
+    }, [editingStakeholder]);
+
+    const handleModalClose = useCallback(() => {
+        setIsAddModalOpen(false);
+        setTimeout(() => setEditingStakeholder(null), 200);
+    }, []);
+
+    const visibleTabs = TABS.filter(tab => {
+        if (!tab.minRole) return true;
+        // Settings tab: owner or admin only
+        return isOwnerOrAdmin;
+    });
+
+    // ── Loading / error states ─────────────────────────────────────────────────
+    if (loading) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+                <Loader2 size={40} className="animate-spin text-indigo-600" />
+            </div>
+        );
+    }
+
+    if (loadError || !project) {
+        return (
+            <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
+                <p className="text-slate-700 font-medium">Failed to load project.</p>
+                <div className="flex gap-3">
+                    <button
+                        onClick={loadData}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition"
+                    >
+                        Retry
+                    </button>
+                    <button
+                        onClick={() => navigate('/dashboard')}
+                        className="px-4 py-2 border border-slate-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 transition"
+                    >
+                        Back to Dashboard
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="min-h-screen bg-slate-50 flex flex-col">
+            {/* Header stays largely the same */}
+            <header className="bg-white border-b border-slate-200 px-6 py-6">
+                <div className="max-w-7xl mx-auto">
+                    <button onClick={() => navigate('/dashboard')} className="flex items-center text-sm text-slate-500 hover:text-slate-900 mb-4 transition-colors">
+                        <ArrowLeft size={16} className="mr-1" /> Back to Dashboard
+                    </button>
+
+                    <div className="flex justify-between items-start gap-4">
+                        <div className="min-w-0">
+                            <h1 className="text-3xl font-black text-slate-900 truncate">{project.name}</h1>
+                            <p className="text-slate-500 max-w-2xl">{project.description || 'No description provided.'}</p>
+                        </div>
+
+                        {activeTab === 'stakeholders' && canEditContent && (
+                            <button
+                                onClick={() => setIsAddModalOpen(true)}
+                                className="shrink-0 bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-indigo-700 transition shadow-lg shadow-indigo-200 flex items-center gap-2"
+                            >
+                                <Plus size={18} /> Add Stakeholder
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-6 mt-8 border-b border-slate-100 overflow-x-auto">
+                        {visibleTabs.map(tab => (
+                            <TabButton
+                                key={tab.id}
+                                id={tab.id}
+                                label={tab.id === 'stakeholders' ? `Stakeholders (${stakeholders.length})` : tab.label}
+                                icon={tab.icon}
+                                active={activeTab === tab.id}
+                                onClick={setActiveTab}
+                            />
+                        ))}
+                    </div>
+                </div>
+            </header>
+
+            <main className="flex-1 max-w-7xl w-full mx-auto p-6 md:p-8">
+                {/* Stakeholders */}
+                {activeTab === 'stakeholders' && (
+                    <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+
+                        {/* Mendelow's Matrix — only when stakeholders exist */}
+                        {stakeholders.length > 0 && (
+                            <MendelowMatrix stakeholders={stakeholders} />
+                        )}
+
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+                                <h3 className="font-bold text-slate-700">Stakeholder Directory</h3>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                    Stakeholder context is injected into every AI debate session.
+                                </p>
+                            </div>
+
+                            {stakeholders.length === 0 ? (
+                                <div className="text-center py-20">
+                                    <Users size={48} className="mx-auto text-slate-300 mb-4" />
+                                    <p className="text-slate-500 font-medium">No stakeholders yet.</p>
+                                    <p className="text-slate-400 text-sm mt-1">Add stakeholders to enrich AI debate context.</p>
+                                </div>
+                            ) : (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left text-sm">
+                                        <thead className="bg-slate-50 text-slate-400 font-black uppercase text-[10px] tracking-widest border-b border-slate-100">
+                                            <tr>
+                                                <th className="px-6 py-4">Name / Role</th>
+                                                <th className="px-6 py-4">Department</th>
+                                                <th className="px-6 py-4 text-center">Influence</th>
+                                                <th className="px-6 py-4 text-center">Interest</th>
+                                                <th className="px-6 py-4">Sentiment</th>
+                                                <th className="px-6 py-4" />
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {stakeholders.map(person => (
+                                                <StakeholderRow
+                                                    key={person.id}
+                                                    person={person}
+                                                    onEdit={handleEdit}
+                                                    onDelete={handleDeleteSuccess}
+                                                />
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Context Files */}
+                {activeTab === 'context' && (
+                    <DocumentsTab projectId={project.id.toString()} />
+                )}
+
+                {/* AI Generator */}
+                {activeTab === 'generator' && (
+                    <GeneratorTab projectId={project.id.toString()} />
+                )}
+            </main>
+
+            {/* Stakeholder modal */}
+            <AddStakeholderModal
+                projectId={id!}
+                isOpen={isAddModalOpen}
+                onClose={handleModalClose}
+                onSuccess={handleModalSuccess}
+                initialData={editingStakeholder}
+            />
+            {/* Outlet required — ProjectDetails is a layout route for nested tab routes */}
+            <Outlet />
+        </div>
+    );
+};

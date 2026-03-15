@@ -1,0 +1,22 @@
+# ── Stage 1: build ────────────────────────────────────────────────────────────
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy dependency files first for cache efficiency
+COPY package.json package-lock.json* ./
+RUN npm ci --frozen-lockfile --legacy-peer-deps
+
+# Copy source and build
+COPY . .
+RUN npm run build
+
+# ── Stage 2: export dist to a shared volume ───────────────────────────────────
+# nginx serves the files directly from a named volume.
+# This stage just copies the build output into place and exits.
+FROM alpine:3.19
+
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+
+CMD ["sh", "-c", "cp -r /app/dist/. /usr/share/nginx/html/ && echo 'Frontend assets copied'"]

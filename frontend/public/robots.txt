@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin
+Disallow: /experiment
+Disallow: /experiment/register
+Disallow: /study
+Disallow: /thesis
+Disallow: /reset-password
+Disallow: /verify-email
+
+Sitemap: https://simurghai.com/sitemap.xml
