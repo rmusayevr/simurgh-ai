@@ -247,6 +247,10 @@ class Settings(BaseSettings):
         """Use Redis URL as Celery result backend if not explicitly set."""
         return v or values.data.get("REDIS_URL", "redis://redis:6379/0")
 
+    # ==================== GitHub OAuth ====================
+    GITHUB_CLIENT_ID: Optional[str] = None
+    GITHUB_CLIENT_SECRET: Optional[SecretStr] = None
+
     # ==================== Integrations (Fallback Defaults) ====================
     # Per-project integration configs are stored in DB (IntegrationConfig model)
     # These serve as system-wide defaults only

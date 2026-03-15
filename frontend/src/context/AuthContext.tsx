@@ -85,6 +85,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await fetchProfile(access_token);
     }, [fetchProfile]);
 
+    // ── OAuth token login: store tokens issued by OAuth callback, load profile ──
+    const loginWithOAuthTokens = useCallback(async (accessToken: string, refreshToken: string): Promise<void> => {
+        TokenStorage.setTokens(accessToken, refreshToken);
+        await fetchProfile(accessToken);
+    }, [fetchProfile]);
+
     // ── Initialise: restore session on mount ──────────────────────────────────
     useEffect(() => {
         if (initRan.current) return;
@@ -142,6 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 user,
                 loading,
                 login,
+                loginWithOAuthTokens,
                 logout,
                 refreshProfile: () => fetchProfile(),
             }}

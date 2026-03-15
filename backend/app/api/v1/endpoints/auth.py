@@ -47,6 +47,7 @@ from app.schemas.user import (
 )
 from app.services.user_service import UserService
 from app.services.system_service import SystemService
+from app.services.github_oauth_service import GitHubOAuthService
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -664,3 +665,78 @@ async def reset_password(
     except Exception as e:
         log.error("password_reset_failed", error=str(e))
         raise BadRequestException("Password reset failed")
+
+
+# ==================== GitHub OAuth ====================
+
+
+@router.get("/github", response_model=None)
+async def github_login():
+    """
+    Initiate GitHub OAuth flow.
+
+    Generates a CSRF state token and redirects the user to GitHub's
+    authorization page. The state is embedded in the redirect URL so
+    the frontend can pass it back in the callback for validation.
+
+    Returns:
+        RedirectResponse: Redirect to GitHub authorization page
+    """
+    from fastapi.responses import RedirectResponse
+
+    if not settings.GITHUB_CLIENT_ID:
+        raise BadRequestException("GitHub OAuth is not configured on this server.")
+
+    state = secrets.token_urlsafe(32)
+    service = GitHubOAuthService(None)  # No DB needed for URL generation
+    url = service.get_authorization_url(state)
+
+    # Embed state in redirect so frontend can validate it on callback
+    return RedirectResponse(url)
+
+
+@router.post("/github/callback", response_model=Token)
+async def github_callback(
+    code: str = Body(..., embed=True),
+    state: str = Body(..., embed=True),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Complete the GitHub OAuth flow.
+
+    Called by the frontend after GitHub redirects back with ?code=...&state=...
+    The frontend POSTs the code and state here rather than having the backend
+    handle the redirect directly — this keeps the auth flow SPA-friendly.
+
+    Args:
+        code: Authorization code from GitHub
+        state: CSRF state token (validated client-side against stored value)
+
+    Returns:
+        Token: Simurgh access + refresh token pair
+
+    Raises:
+        BadRequestException: If GitHub exchange fails or email unavailable
+    """
+    log = logger.bind(operation="github_callback")
+
+    service = GitHubOAuthService(session)
+
+    try:
+        github_profile = await service.exchange_code(code)
+        user = await service.get_or_create_user(github_profile)
+        access_token, refresh_token = await service.issue_tokens(user)
+
+        log.info("github_oauth_completed", user_id=user.id)
+
+        return Token(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
+        )
+
+    except BadRequestException:
+        raise
+    except Exception as e:
+        log.error("github_oauth_failed", error=str(e))
+        raise BadRequestException("GitHub authentication failed. Please try again.")

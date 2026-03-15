@@ -38,6 +38,7 @@ const ThesisAnalytics = lazy(() => import('./pages/ThesisAnalytics').then(m => (
 const ExperimentRegistration = lazy(() => import('./pages/ExperimentRegistration').then(m => ({ default: m.ExperimentRegistration })));
 const ExperimentInterface = lazy(() => import('./components/evaluation/ExperimentInterface').then(m => ({ default: m.ExperimentInterface })));
 const ParticipantLogin = lazy(() => import('./pages/ParticipantLogin').then(m => ({ default: m.ParticipantLogin })));
+const OAuthCallback = lazy(() => import('./pages/OAuthCallback').then(m => ({ default: m.OAuthCallback })));
 
 // ─── Shared loading fallback ──────────────────────────────────────────────────
 const PageLoader = () => (
@@ -273,6 +274,9 @@ function App() {
             <Route path="/terms" element={<TermsOfService />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+
+            {/* GitHub OAuth callback — receives ?code=...&state=... from GitHub */}
+            <Route path="/auth/github/callback" element={<OAuthCallback />} />
 
             {/* Participant study entry point — only available when THESIS_MODE is on */}
             <Route path="/study" element={<ThesisModeRoute><ParticipantLogin /></ThesisModeRoute>} />

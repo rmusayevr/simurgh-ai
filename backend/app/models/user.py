@@ -169,6 +169,28 @@ class User(SQLModel, table=True):
         description="Timestamp of terms acceptance",
     )
 
+    # ==================== OAuth ====================
+
+    github_id: Optional[str] = Field(
+        default=None,
+        max_length=50,
+        unique=True,
+        index=True,
+        description="GitHub user ID for OAuth login",
+    )
+
+    github_username: Optional[str] = Field(
+        default=None,
+        max_length=100,
+        description="GitHub username (for display)",
+    )
+
+    oauth_provider: Optional[str] = Field(
+        default=None,
+        max_length=20,
+        description="OAuth provider used to create/link this account: 'github' | 'google' | 'atlassian'",
+    )
+
     # ==================== Password Reset ====================
 
     reset_token: Optional[str] = Field(

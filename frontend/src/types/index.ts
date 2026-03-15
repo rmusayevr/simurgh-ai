@@ -213,6 +213,7 @@ export interface AuthContextType {
     user: UserProfile | null;
     loading: boolean;
     login: (username: string, password: string) => Promise<void>;
+    loginWithOAuthTokens: (accessToken: string, refreshToken: string) => Promise<void>;
     logout: () => void;
     refreshProfile: () => Promise<void>;
 }

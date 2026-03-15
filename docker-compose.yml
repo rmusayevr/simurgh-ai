@@ -19,6 +19,8 @@ x-backend-environment: &backend-environment
   EMAIL_FROM_NAME: "${EMAIL_FROM_NAME:-Thesis Study}"
   SKIP_EMAIL_VERIFICATION: "${SKIP_EMAIL_VERIFICATION:-false}"
   THESIS_MODE: "${THESIS_MODE:-false}"
+  GITHUB_CLIENT_ID: "${GITHUB_CLIENT_ID:-}"
+  GITHUB_CLIENT_SECRET: "${GITHUB_CLIENT_SECRET:-}"
   ENVIRONMENT: "development"
   DEBUG: "true"
 
