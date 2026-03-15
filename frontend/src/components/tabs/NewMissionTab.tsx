@@ -19,7 +19,7 @@ export const NewMissionTab: React.FC<NewMissionTabProps> = ({
                         <PlusCircle size={32} />
                     </div>
                     <h2 className="text-2xl font-bold text-slate-900">New Debate Session</h2>
-                    <p className="text-slate-500 mt-2">Define the architectural objective to open a session workspace.</p>
+                    <p className="text-slate-500 mt-2">Define the architectural objective to open a session workspace. <span className="text-slate-400">(optional — you can add it later)</span></p>
                 </div>
 
                 <div className="space-y-6">
@@ -38,7 +38,7 @@ export const NewMissionTab: React.FC<NewMissionTabProps> = ({
 
                     <button
                         onClick={handleCreateDraft}
-                        disabled={loading || !task}
+                        disabled={loading}
                         className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-lg flex justify-center items-center gap-2 hover:bg-black hover:scale-[1.01] transition-all shadow-lg disabled:opacity-50 disabled:scale-100"
                     >
                         {loading ? <Loader2 className="animate-spin" /> : <Zap fill="currentColor" />}

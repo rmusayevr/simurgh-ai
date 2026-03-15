@@ -91,8 +91,7 @@ export const GeneratorTab: React.FC<GeneratorTabProps> = ({ projectId }) => {
 
     // ── Create mission ─────────────────────────────────────────────────────────
     const handleCreate = useCallback(async () => {
-        const description = task.trim();
-        if (!description) return;
+        const description = task.trim() || `Untitled session — ${new Date().toLocaleDateString()}`;
         setCreating(true);
         try {
             const draft = await handleCreateDraft(description);

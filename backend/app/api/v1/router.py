@@ -34,6 +34,7 @@ from app.api.v1.endpoints.admin import (
     proposals as admin_proposals,
     settings as admin_settings,
     analytics as admin_analytics,
+    token_usage as admin_token_usage,
 )
 from app.api.v1.endpoints.experiment import (
     experiment_dashboard,
@@ -233,6 +234,12 @@ api_router.include_router(
 
 api_router.include_router(
     admin_analytics.router,
+    prefix="/admin",
+    tags=["admin"],
+)
+
+api_router.include_router(
+    admin_token_usage.router,
     prefix="/admin",
     tags=["Admin"],
     dependencies=[Depends(get_current_superuser)],

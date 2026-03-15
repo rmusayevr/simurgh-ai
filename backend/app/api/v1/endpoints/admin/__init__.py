@@ -12,7 +12,15 @@ Submodules:
     - analytics: RAG verification and analytics
 """
 
-__all__ = ["health", "users", "projects", "proposals", "settings", "analytics"]
+__all__ = [
+    "health",
+    "users",
+    "projects",
+    "proposals",
+    "settings",
+    "analytics",
+    "token_usage",
+]
 
 from app.api.v1.endpoints.admin import health
 from app.api.v1.endpoints.admin import users
@@ -20,3 +28,4 @@ from app.api.v1.endpoints.admin import projects
 from app.api.v1.endpoints.admin import proposals
 from app.api.v1.endpoints.admin import settings
 from app.api.v1.endpoints.admin import analytics
+from app.api.v1.endpoints.admin import token_usage

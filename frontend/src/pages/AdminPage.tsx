@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     Users, ShieldAlert, LayoutDashboard, Zap, Logs, FlaskConical,
-    ArrowLeft, TrendingUp, LogOut, Loader2, Cpu, Settings, UserCheck,
+    ArrowLeft, TrendingUp, LogOut, Loader2, Cpu, Settings, UserCheck, DollarSign,
 } from 'lucide-react';
 import { adminApi } from '../api/client';
 import type { AdminUser, UserProfile } from '../types';
@@ -18,6 +18,7 @@ import { AdminAnalytics } from '../components/admin/AdminAnalytics';
 import { AdminRecentActivityFeed } from '../components/admin/AdminRecentActivityFeed';
 import { AdminExperimentData } from '../components/admin/AdminExperimentData';
 import { PersonaVerificationTool } from '../pages/PersonaVerification';
+import { AdminTokenUsage } from '../components/admin/AdminTokenUsage';
 
 
 interface AdminPageProps {
@@ -52,8 +53,8 @@ export const StatCard = ({ title, value, icon: Icon, color, loading }: StatCardP
 );
 
 export const AdminPage: React.FC<AdminPageProps> = ({ currentUser, onLogout, onBackToApp, defaultTab }) => {
-    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'projects' | 'prompts' | 'settings' | 'proposals' | 'logs' | 'experiment' | 'persona-coding'>(
-        (defaultTab ?? 'overview') as 'overview' | 'users' | 'projects' | 'prompts' | 'settings' | 'proposals' | 'logs' | 'experiment' | 'persona-coding'
+    const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'projects' | 'prompts' | 'settings' | 'proposals' | 'logs' | 'experiment' | 'persona-coding' | 'tokens'>(
+        (defaultTab ?? 'overview') as 'overview' | 'users' | 'projects' | 'prompts' | 'settings' | 'proposals' | 'logs' | 'experiment' | 'persona-coding' | 'tokens'
     );
     const [users, setUsers] = useState<AdminUser[]>([]);
     interface AdminStatsData {
@@ -188,6 +189,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ currentUser, onLogout, onB
                         { id: 'settings', label: 'System', icon: Settings },
                         { id: 'experiment', label: 'Experiment', icon: FlaskConical },
                         { id: 'persona-coding', label: 'Persona Coding', icon: UserCheck },
+                        { id: 'tokens', label: 'Token Costs', icon: DollarSign },
                     ].map((tab) => (
                         <button
                             key={tab.id}
@@ -245,6 +247,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ currentUser, onLogout, onB
                     {activeTab === 'logs' && <AdminLogs />}
                     {activeTab === 'settings' && <AdminSettings />}
                     {activeTab === 'experiment' && <AdminExperimentData />}
+                    {activeTab === 'tokens' && <AdminTokenUsage />}
+
                     {activeTab === 'persona-coding' && (
                         <div className="space-y-4">
                             <div className="flex items-center gap-3 pb-2 border-b border-slate-200">

@@ -22,6 +22,7 @@ import type {
     ExitSurveyCreate,
     ExitSurveyRead,
     ThematicTheme,
+    TokenUsageSummary,
 } from '../types';
 
 // ─── Base URL ─────────────────────────────────────────────────────────────────
@@ -246,7 +247,14 @@ export const adminApi = {
 
     getAnalytics: () =>
         api.get<Record<string, unknown>>('/admin/analytics'),
+
+    // ─── Token Usage ───
+    getTokenUsage: (days = 30) =>
+        api.get<TokenUsageSummary>('/admin/token-usage', { params: { days } }).then(r => r.data),
 } as const;
+
+// ─── Token Usage types ───────────────────────────────────────────────────────
+
 
 // ─── Prompt API ───────────────────────────────────────────────────────────────
 export const promptApi = {

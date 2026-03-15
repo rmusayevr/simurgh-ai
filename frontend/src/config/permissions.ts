@@ -18,6 +18,13 @@ export const ROLE_PERMISSIONS: Readonly<Record<ProjectRole, ReadonlyArray<Permis
     VIEWER: ['VIEW_ONLY'],
 } as const;
 
+export const ROLE_LABELS: Readonly<Record<ProjectRole, { label: string; description: string }>> = {
+    OWNER: { label: 'Owner', description: 'Full control including delete and billing' },
+    ADMIN: { label: 'Admin', description: 'Manage members, approve proposals, run debates' },
+    EDITOR: { label: 'Editor', description: 'Run debates and edit content' },
+    VIEWER: { label: 'Viewer', description: 'Read-only access' },
+} as const;
+
 export const hasPermission = (
     role: ProjectRole | null | undefined,
     action: Permission

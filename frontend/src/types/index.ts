@@ -714,3 +714,18 @@ export interface RecentActivity {
     status: string;
     time: string;
 }
+
+// ─── 14. Token Usage ─────────────────────────────────────────────────────────────────
+
+export interface OperationStat {
+    operation: string; calls: number; input_tokens: number; output_tokens: number;
+    cache_creation_tokens: number; cache_read_tokens: number; cost_usd: number;
+}
+export interface UserStat { user_id: number | null; email: string | null; calls: number; cost_usd: number; }
+export interface DailyStat { date: string; cost_usd: number; calls: number; }
+export interface TokenUsageSummary {
+    total_calls: number; total_cost_usd: number;
+    total_input_tokens: number; total_output_tokens: number;
+    total_cache_creation_tokens: number; total_cache_read_tokens: number;
+    by_operation: OperationStat[]; by_user: UserStat[]; daily: DailyStat[];
+}
