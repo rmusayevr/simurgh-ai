@@ -201,7 +201,7 @@ fmt: ## Auto-fix backend formatting and lint errors with Ruff
 
 prod: ## Build and start the production stack (requires HTTPS domain in .env)
 	@echo "$(GREEN)► Starting production stack...$(RESET)"
-	@[[ -f .env ]] || (echo "$(YELLOW).env not found — copy .env.example and fill in production values.$(RESET)" && exit 1)
+	@test -f .env || (echo "$(YELLOW).env not found — copy .env.example and fill in production values.$(RESET)" && exit 1)
 	$(COMPOSE_PROD) up --build -d
 	@sleep 5
 	@$(MAKE) prod-migrate
