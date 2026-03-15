@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    tags: ["v*"]
   pull_request:
     branches: [main]
 
@@ -343,7 +343,6 @@ jobs:
   publish-docker:
     name: Publish — Docker images to GHCR
     runs-on: ubuntu-latest
-    needs: [ci]
     if: startsWith(github.ref, 'refs/tags/v')
 
     permissions:
@@ -376,8 +375,8 @@ jobs:
           target: runtime
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/ai-stakeholder-agent-backend:${{ steps.tag.outputs.version }}
-            ghcr.io/${{ github.repository_owner }}/ai-stakeholder-agent-backend:latest
+            ghcr.io/${{ github.repository_owner }}/simurgh-ai-backend:${{ steps.tag.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/simurgh-ai-backend:latest
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
 
@@ -389,7 +388,7 @@ jobs:
           file: ./frontend/Dockerfile.prod
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/ai-stakeholder-agent-frontend:${{ steps.tag.outputs.version }}
-            ghcr.io/${{ github.repository_owner }}/ai-stakeholder-agent-frontend:latest
+            ghcr.io/${{ github.repository_owner }}/simurgh-ai-frontend:${{ steps.tag.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/simurgh-ai-frontend:latest
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
