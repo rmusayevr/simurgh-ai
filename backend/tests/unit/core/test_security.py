@@ -231,8 +231,8 @@ class TestDecodeToken:
 
     def test_tampered_signature_raises_unauthorized(self):
         token = create_access_token(subject="1")
-        # Flip the last character to tamper the signature
-        tampered = token[:-1] + ("A" if token[-1] != "A" else "B")
+        header, payload, _ = token.rsplit(".", 2)
+        tampered = f"{header}.{payload}.invalidsignatureXXXXXXXXXXXX"
         with pytest.raises(UnauthorizedException):
             decode_token(tampered)
 
