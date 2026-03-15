@@ -5,7 +5,8 @@ WORKDIR /app
 
 # Copy dependency files first for cache efficiency
 COPY package.json package-lock.json* ./
-RUN npm ci --frozen-lockfile --legacy-peer-deps
+
+RUN rm -f package-lock.json && npm install --legacy-peer-deps
 
 # Copy source and build
 COPY . .

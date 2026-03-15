@@ -50,11 +50,15 @@ $COMPOSE build --pull
 info "Starting services..."
 $COMPOSE up -d
 
-info "Waiting for backend to be healthy..."
-sleep 5
-
-info "Running database migrations..."
-$COMPOSE exec -T backend alembic upgrade head
+info "Waiting for backend to start (entrypoint runs migrations automatically)..."
+for i in $(seq 1 30); do
+    if $COMPOSE logs backend 2>/dev/null | grep -q "Application startup complete\|Uvicorn running\|Starting application"; then
+        info "Backend is ready."
+        break
+    fi
+    echo "  waiting for backend... ($i/30)"
+    sleep 5
+done
 
 # ── First-time DB seed ────────────────────────────────────────────────────────
 if [[ "${1:-}" == "--init" ]]; then
