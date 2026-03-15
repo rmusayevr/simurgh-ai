@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2, AlertCircle } from 'lucide-react';
 
@@ -8,11 +8,11 @@ import type { GeneratorTabProps, Proposal } from '../../types';
 import { useProjectMissions } from '../../hooks/useProjectMissions';
 import { useProposalPoller } from '../../hooks/useProposalPoller';
 
-import { ConfirmModal } from '../modals/ConfirmModal';
-import { GeneratorNavigation } from '../GeneratorNavigation';
-import { HistoryTab } from './HistoryTab';
-import { NewMissionTab } from './NewMissionTab';
-import { MissionLobby } from './MissionLobby';
+import { ConfirmModal } from './../modals/ConfirmModal';
+import { GeneratorNavigation } from './../GeneratorNavigation';
+import { HistoryTab } from './../tabs/HistoryTab';
+import { NewMissionTab } from './../tabs/NewMissionTab';
+import { MissionLobby } from './../tabs/MissionLobby';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -66,6 +66,14 @@ export const GeneratorTab: React.FC<GeneratorTabProps> = ({ projectId }) => {
     const [task, setTask] = useState('');
     const [creating, setCreating] = useState(false);
     const [confirmState, setConfirmState] = useState<ConfirmState>(CLOSED_CONFIRM);
+
+    // ── Auto-redirect to New Session when project has no activity ───────────────
+    useEffect(() => {
+        if (loading) return;
+        if (activeMainTab === 'active' && activeMissions.length === 0 && history.length === 0) {
+            setActiveMainTab('new');
+        }
+    }, [loading, activeMainTab, activeMissions.length, history.length, setActiveMainTab]);
 
     // ── Lobby-level poller: keeps badge counts accurate ───────────────────────
     const processingMission = activeMissions.find((m: Proposal) => m.status === ProposalStatus.PROCESSING) ?? null;

@@ -27,6 +27,8 @@ export function useChatSession(
     const [chatLoading, setChatLoading] = useState(false);
     const [updatedVariation, setUpdatedVariation] = useState<ProposalVariation | null>(null);
     const chatEndRef = useRef<HTMLDivElement>(null);
+    // Ref-based guard — avoids re-renders and prevents double-sends on rapid clicks
+    const isSubmittingRef = useRef(false);
 
     // ── Reset on variation change ──────────────────────────────────────────────
     useEffect(() => {
@@ -48,6 +50,8 @@ export function useChatSession(
     const handleSendMessage = useCallback(async () => {
         const message = chatInput.trim();
         if (!message || !selectedVariation) return;
+        if (isSubmittingRef.current) return;  // block duplicate sends
+        isSubmittingRef.current = true;
 
         const userMsg: ChatMessage = { role: 'user', content: message };
         const optimisticHistory = [...chatHistory, userMsg];
@@ -74,6 +78,7 @@ export function useChatSession(
             onError('Error', 'Failed to send message. Please try again.', () => { });
         } finally {
             setChatLoading(false);
+            isSubmittingRef.current = false;
         }
     }, [chatInput, chatHistory, selectedVariation, onError]);
 

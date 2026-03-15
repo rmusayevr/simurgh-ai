@@ -371,16 +371,21 @@ const ProposalDetailPage: React.FC = () => {
     const handleSelectVariation = useCallback(async (variationId: number) => {
         if (!proposal) return;
         setSelecting(true);
+        // Optimistic update — show selection immediately, roll back on error
+        const previousId = proposal.selected_variation_id;
+        setProposal(prev => prev ? { ...prev, selected_variation_id: variationId } : null);
         try {
             await api.post(`/proposals/${proposal.id}/select`, { variation_id: variationId });
-            setProposal(prev => prev ? { ...prev, selected_variation_id: variationId } : null);
             toast.success('Strategy selected! Redirecting to accepted proposals…');
             setTimeout(() => {
                 navigate(`/project/${projectId}/generator/history`, {
                     state: { highlightId: proposal.id },
                 });
             }, 1200);
-        } catch { toast.error('Failed to select proposal.'); }
+        } catch {
+            setProposal(prev => prev ? { ...prev, selected_variation_id: previousId } : null);
+            toast.error('Failed to select proposal.');
+        }
         finally { setSelecting(false); }
     }, [proposal, projectId, navigate]);
 
