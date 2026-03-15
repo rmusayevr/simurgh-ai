@@ -48,6 +48,7 @@ from app.schemas.user import (
 from app.services.user_service import UserService
 from app.services.system_service import SystemService
 from app.services.github_oauth_service import GitHubOAuthService
+from app.services.google_oauth_service import GoogleOAuthService
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -740,3 +741,62 @@ async def github_callback(
     except Exception as e:
         log.error("github_oauth_failed", error=str(e))
         raise BadRequestException("GitHub authentication failed. Please try again.")
+
+
+# ==================== Google OAuth ====================
+
+
+@router.get("/google", response_model=None)
+async def google_login():
+    """
+    Initiate Google OAuth flow.
+
+    Redirects the user to Google's authorization page.
+    """
+    from fastapi.responses import RedirectResponse
+
+    if not settings.GOOGLE_CLIENT_ID:
+        raise BadRequestException("Google OAuth is not configured on this server.")
+
+    state = secrets.token_urlsafe(32)
+    service = GoogleOAuthService(None)
+    url = service.get_authorization_url(state)
+    return RedirectResponse(url)
+
+
+@router.post("/google/callback", response_model=Token)
+async def google_callback(
+    code: str = Body(..., embed=True),
+    state: str = Body(..., embed=True),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Complete the Google OAuth flow.
+
+    Called by the frontend after Google redirects back with ?code=...&state=...
+
+    Returns:
+        Token: Simurgh access + refresh token pair
+    """
+    log = logger.bind(operation="google_callback")
+
+    service = GoogleOAuthService(session)
+
+    try:
+        google_profile = await service.exchange_code(code)
+        user = await service.get_or_create_user(google_profile)
+        access_token, refresh_token = await service.issue_tokens(user)
+
+        log.info("google_oauth_completed", user_id=user.id)
+
+        return Token(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
+        )
+
+    except BadRequestException:
+        raise
+    except Exception as e:
+        log.error("google_oauth_failed", error=str(e))
+        raise BadRequestException("Google authentication failed. Please try again.")

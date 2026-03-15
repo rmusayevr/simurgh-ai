@@ -251,6 +251,10 @@ class Settings(BaseSettings):
     GITHUB_CLIENT_ID: Optional[str] = None
     GITHUB_CLIENT_SECRET: Optional[SecretStr] = None
 
+    # ==================== Google OAuth ====================
+    GOOGLE_CLIENT_ID: Optional[str] = None
+    GOOGLE_CLIENT_SECRET: Optional[SecretStr] = None
+
     # ==================== Integrations (Fallback Defaults) ====================
     # Per-project integration configs are stored in DB (IntegrationConfig model)
     # These serve as system-wide defaults only

@@ -185,6 +185,14 @@ class User(SQLModel, table=True):
         description="GitHub username (for display)",
     )
 
+    google_id: Optional[str] = Field(
+        default=None,
+        max_length=50,
+        unique=True,
+        index=True,
+        description="Google user ID (sub) for OAuth login",
+    )
+
     oauth_provider: Optional[str] = Field(
         default=None,
         max_length=20,

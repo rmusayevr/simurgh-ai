@@ -275,8 +275,8 @@ function App() {
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/reset-password" element={<ResetPassword />} />
 
-            {/* GitHub OAuth callback — receives ?code=...&state=... from GitHub */}
-            <Route path="/auth/github/callback" element={<OAuthCallback />} />
+            {/* OAuth callbacks — handles GitHub, Google, Atlassian */}
+            <Route path="/auth/:provider/callback" element={<OAuthCallback />} />
 
             {/* Participant study entry point — only available when THESIS_MODE is on */}
             <Route path="/study" element={<ThesisModeRoute><ParticipantLogin /></ThesisModeRoute>} />
