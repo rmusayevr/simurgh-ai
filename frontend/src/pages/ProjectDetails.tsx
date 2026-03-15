@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import {
-    ArrowLeft, Plus, Users, FileText, Bot, Loader2
+    ArrowLeft, Plus, Users, FileText, Bot, Loader2, Pencil, Check, X
 } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
@@ -11,12 +11,16 @@ import { DocumentsTab } from '../components/tabs/DocumentsTab';
 import { GeneratorTab } from '../components/tabs/GeneratorTab';
 import { StakeholderRow } from '../components/StakeholderRow';
 import { MendelowMatrix } from '../components/MendelowMatrix';
+import { TagInput } from '../components/TagInput';
 import type { Project, Stakeholder, ProjectRole } from '../types';
+
+const DOMAIN_TAGS = ['fintech', 'healthcare', 'e-commerce', 'logistics', 'saas', 'internal-tool'];
+const SCALE_TAGS = ['startup', 'enterprise', 'migration', 'greenfield'];
+const STACK_TAGS = ['microservices', 'monolith', 'cloud-native', 'on-premise', 'python', 'java', 'node', 'react', 'postgresql', 'kubernetes'];
 
 // ─── Tab definition ────────────────────────────────────────────────────────────
 type TabId = 'stakeholders' | 'context' | 'generator';
 
-// ─── Main component ────────────────────────────────────────────────────────────
 interface Tab {
     id: TabId;
     label: string;
@@ -74,6 +78,13 @@ export const ProjectDetails = () => {
     const [editingStakeholder, setEditingStakeholder] = useState<Stakeholder | null>(null);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
+    // ── Tag editing state ──────────────────────────────────────────────────────
+    const [isEditingTags, setIsEditingTags] = useState(false);
+    const [editTags, setEditTags] = useState<string[]>([]);
+    const [editTechStack, setEditTechStack] = useState<string[]>([]);
+    const [savingTags, setSavingTags] = useState(false);
+    const [tagSaveError, setTagSaveError] = useState<string | null>(null);
+
     // ── Active tab — derived from URL path ─────────────────────────────────────
     const activeTab = getActiveTabFromPath(location.pathname);
 
@@ -112,6 +123,39 @@ export const ProjectDetails = () => {
 
     useEffect(() => { loadData(); }, [loadData]);
 
+    // ── Tag editing handlers ───────────────────────────────────────────────────
+    const openTagEdit = useCallback(() => {
+        if (!project) return;
+        setEditTags(project.tags ? project.tags.split(',').map(t => t.trim()).filter(Boolean) : []);
+        setEditTechStack(project.tech_stack ? project.tech_stack.split(',').map(t => t.trim()).filter(Boolean) : []);
+        setTagSaveError(null);
+        setIsEditingTags(true);
+    }, [project]);
+
+    const cancelTagEdit = useCallback(() => {
+        setIsEditingTags(false);
+        setTagSaveError(null);
+    }, []);
+
+    const saveTagEdit = useCallback(async () => {
+        if (!id || !project) return;
+        setSavingTags(true);
+        setTagSaveError(null);
+        try {
+            const res = await api.patch<Project>(`/projects/${id}`, {
+                tags: editTags.length > 0 ? editTags.join(',') : null,
+                tech_stack: editTechStack.length > 0 ? editTechStack.join(',') : null,
+            });
+            setProject(res.data);
+            setIsEditingTags(false);
+        } catch (err: unknown) {
+            const error = err as { response?: { data?: { detail?: string } }; message?: string };
+            setTagSaveError(error?.response?.data?.detail || error?.message || 'Failed to save.');
+        } finally {
+            setSavingTags(false);
+        }
+    }, [id, project, editTags, editTechStack]);
+
     // ── Stakeholder CRUD callbacks ─────────────────────────────────────────────
     const handleEdit = useCallback((person: Stakeholder) => {
         setEditingStakeholder(person);
@@ -137,9 +181,12 @@ export const ProjectDetails = () => {
 
     const visibleTabs = TABS.filter(tab => {
         if (!tab.minRole) return true;
-        // Settings tab: owner or admin only
         return isOwnerOrAdmin;
     });
+
+    // ── Derived tag lists for display ──────────────────────────────────────────
+    const tagList = project?.tags ? project.tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+    const techList = project?.tech_stack ? project.tech_stack.split(',').map(t => t.trim()).filter(Boolean) : [];
 
     // ── Loading / error states ─────────────────────────────────────────────────
     if (loading) {
@@ -174,7 +221,6 @@ export const ProjectDetails = () => {
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col">
-            {/* Header stays largely the same */}
             <header className="bg-white border-b border-slate-200 px-6 py-6">
                 <div className="max-w-7xl mx-auto">
                     <button onClick={() => navigate('/dashboard')} className="flex items-center text-sm text-slate-500 hover:text-slate-900 mb-4 transition-colors">
@@ -182,9 +228,85 @@ export const ProjectDetails = () => {
                     </button>
 
                     <div className="flex justify-between items-start gap-4">
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                             <h1 className="text-3xl font-black text-slate-900 truncate">{project.name}</h1>
-                            <p className="text-slate-500 max-w-2xl">{project.description || 'No description provided.'}</p>
+                            <p className="text-slate-500 max-w-2xl mt-1">{project.description || 'No description provided.'}</p>
+
+                            {/* ── Tag display / edit area ── */}
+                            <div className="mt-4">
+                                {isEditingTags ? (
+                                    // Edit mode
+                                    <div className="space-y-3 max-w-2xl">
+                                        <TagInput
+                                            label="Tags"
+                                            tags={editTags}
+                                            onChange={setEditTags}
+                                            placeholder="e.g. fintech, migration..."
+                                            suggestions={DOMAIN_TAGS.concat(SCALE_TAGS)}
+                                            disabled={savingTags}
+                                        />
+                                        <TagInput
+                                            label="Tech Stack"
+                                            tags={editTechStack}
+                                            onChange={setEditTechStack}
+                                            placeholder="e.g. python, postgresql..."
+                                            suggestions={STACK_TAGS}
+                                            disabled={savingTags}
+                                        />
+                                        {tagSaveError && (
+                                            <p className="text-red-500 text-xs font-medium">{tagSaveError}</p>
+                                        )}
+                                        <div className="flex items-center gap-2 pt-1">
+                                            <button
+                                                onClick={saveTagEdit}
+                                                disabled={savingTags}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
+                                            >
+                                                {savingTags
+                                                    ? <Loader2 size={12} className="animate-spin" />
+                                                    : <Check size={12} strokeWidth={3} />}
+                                                Save
+                                            </button>
+                                            <button
+                                                onClick={cancelTagEdit}
+                                                disabled={savingTags}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 text-xs font-bold rounded-lg hover:bg-slate-100 transition disabled:opacity-50"
+                                            >
+                                                <X size={12} strokeWidth={3} /> Cancel
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    // Display mode
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {/* Tag pills */}
+                                        {tagList.map(tag => (
+                                            <span key={tag} className="text-[11px] font-bold uppercase tracking-wider text-cyan-700 bg-cyan-50 border border-cyan-100 px-2.5 py-1 rounded-lg">
+                                                {tag}
+                                            </span>
+                                        ))}
+                                        {/* Tech stack pills — distinct colour */}
+                                        {techList.map(tech => (
+                                            <span key={tech} className="text-[11px] font-bold uppercase tracking-wider text-violet-700 bg-violet-50 border border-violet-100 px-2.5 py-1 rounded-lg">
+                                                {tech}
+                                            </span>
+                                        ))}
+                                        {/* Empty state + edit button (owners/admins only) */}
+                                        {tagList.length === 0 && techList.length === 0 && isOwnerOrAdmin && (
+                                            <span className="text-xs text-slate-400">No tags yet.</span>
+                                        )}
+                                        {isOwnerOrAdmin && (
+                                            <button
+                                                onClick={openTagEdit}
+                                                className="flex items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-indigo-600 transition-colors ml-1"
+                                                title="Edit tags and tech stack"
+                                            >
+                                                <Pencil size={11} /> Edit tags
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {activeTab === 'stakeholders' && canEditContent && (
@@ -217,7 +339,6 @@ export const ProjectDetails = () => {
                 {activeTab === 'stakeholders' && (
                     <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
 
-                        {/* Mendelow's Matrix — only when stakeholders exist */}
                         {stakeholders.length > 0 && (
                             <MendelowMatrix stakeholders={stakeholders} />
                         )}
@@ -277,7 +398,6 @@ export const ProjectDetails = () => {
                 )}
             </main>
 
-            {/* Stakeholder modal */}
             <AddStakeholderModal
                 projectId={id!}
                 isOpen={isAddModalOpen}
@@ -285,7 +405,6 @@ export const ProjectDetails = () => {
                 onSuccess={handleModalSuccess}
                 initialData={editingStakeholder}
             />
-            {/* Outlet required — ProjectDetails is a layout route for nested tab routes */}
             <Outlet />
         </div>
     );

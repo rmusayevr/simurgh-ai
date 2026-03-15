@@ -2,10 +2,15 @@ import { OnboardingModal } from '../components/onboarding/OnboardingModal';
 import { OnboardingChecklist } from '../components/onboarding/OnboardingChecklist';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Loader2, X, FolderOpen, Archive, Search } from 'lucide-react';
+import { Plus, Loader2, X, FolderOpen, Archive, Search, Tag } from 'lucide-react';
 import { api } from '../api/client';
 import type { ProjectListItem } from '../types';
 import { ProjectCard } from '../components/ProjectCard';
+import { TagInput } from '../components/TagInput';
+
+const DOMAIN_TAGS = ['fintech', 'healthcare', 'e-commerce', 'logistics', 'saas', 'internal-tool'];
+const SCALE_TAGS = ['startup', 'enterprise', 'migration', 'greenfield'];
+const STACK_TAGS = ['microservices', 'monolith', 'cloud-native', 'on-premise', 'python', 'java', 'node', 'react', 'postgresql', 'kubernetes'];
 
 export const Dashboard = () => {
     const navigate = useNavigate();
@@ -19,8 +24,11 @@ export const Dashboard = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [projectName, setProjectName] = useState('');
     const [projectDesc, setProjectDesc] = useState('');
+    const [projectTags, setProjectTags] = useState<string[]>([]);
+    const [projectTechStack, setProjectTechStack] = useState<string[]>([]);
     const [creating, setCreating] = useState(false);
     const [createError, setCreateError] = useState<string | null>(null);
+    const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
 
     const nameInputRef = useRef<HTMLInputElement>(null);
 
@@ -44,15 +52,26 @@ export const Dashboard = () => {
     }, [fetchProjects]);
 
     // ── Filtering ─────────────────────────────────────────────────────────────
-    const filteredProjects = projects.filter(p =>
-        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()))
-    );
+    const filteredProjects = projects.filter(p => {
+        const matchesSearch =
+            p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()));
+        const matchesTag = !activeTagFilter ||
+            (p.tags && p.tags.split(',').map(t => t.trim()).includes(activeTagFilter));
+        return matchesSearch && matchesTag;
+    });
+
+    // Collect all unique tags across all projects for the filter bar
+    const allTags = Array.from(new Set(
+        projects.flatMap(p => p.tags ? p.tags.split(',').map(t => t.trim()).filter(Boolean) : [])
+    )).sort();
 
     // ── Modal helpers ───────────────────────────────────────────────────────────
     const openModal = useCallback(() => {
         setProjectName('');
         setProjectDesc('');
+        setProjectTags([]);
+        setProjectTechStack([]);
         setCreateError(null);
         setIsModalOpen(true);
         setTimeout(() => nameInputRef.current?.focus(), 50);
@@ -75,6 +94,8 @@ export const Dashboard = () => {
             const res = await api.post<ProjectListItem>('/projects/', {
                 name,
                 description: projectDesc.trim() || null,
+                tags: projectTags.length > 0 ? projectTags.join(',') : null,
+                tech_stack: projectTechStack.length > 0 ? projectTechStack.join(',') : null,
             });
             setProjects(prev => [res.data, ...prev]);
             setIsModalOpen(false);
@@ -85,7 +106,7 @@ export const Dashboard = () => {
         } finally {
             setCreating(false);
         }
-    }, [projectName, projectDesc]);
+    }, [projectName, projectDesc, projectTags, projectTechStack]);
 
     const handleKeyDown = useCallback(
         (e: React.KeyboardEvent) => {
@@ -153,6 +174,34 @@ export const Dashboard = () => {
                     hasProjects={projects.length > 0}
                     onCreateProject={openModal}
                 />
+
+                {/* Tag filter bar — only shown when projects have tags */}
+                {allTags.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 mb-6">
+                        <Tag size={14} className="text-slate-400 shrink-0" />
+                        <button
+                            onClick={() => setActiveTagFilter(null)}
+                            className={`text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg border transition-all ${!activeTagFilter
+                                ? 'bg-cyan-600 text-white border-cyan-600 shadow-sm'
+                                : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                                }`}
+                        >
+                            All
+                        </button>
+                        {allTags.map(tag => (
+                            <button
+                                key={tag}
+                                onClick={() => setActiveTagFilter(activeTagFilter === tag ? null : tag)}
+                                className={`text-[11px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg border transition-all ${activeTagFilter === tag
+                                    ? 'bg-cyan-600 text-white border-cyan-600 shadow-sm'
+                                    : 'bg-white text-slate-500 border-slate-200 hover:bg-cyan-50 hover:text-cyan-700 hover:border-cyan-200'
+                                    }`}
+                            >
+                                {tag}
+                            </button>
+                        ))}
+                    </div>
+                )}
 
                 {/* Content Section */}
                 {loading ? (
@@ -286,6 +335,24 @@ export const Dashboard = () => {
                                     maxLength={2000}
                                 />
                             </div>
+
+                            <TagInput
+                                label="Tags"
+                                tags={projectTags}
+                                onChange={setProjectTags}
+                                placeholder="e.g. fintech, migration..."
+                                suggestions={DOMAIN_TAGS.concat(SCALE_TAGS)}
+                                disabled={creating}
+                            />
+
+                            <TagInput
+                                label="Tech Stack"
+                                tags={projectTechStack}
+                                onChange={setProjectTechStack}
+                                placeholder="e.g. python, postgresql..."
+                                suggestions={STACK_TAGS}
+                                disabled={creating}
+                            />
 
                             {createError && (
                                 <div className="p-3 bg-red-50 border border-red-100 rounded-xl flex items-start gap-2 text-red-600 text-sm">
