@@ -128,15 +128,16 @@ async def get_token_usage(
     ]
 
     # ── Daily series ──────────────────────────────────────────────────────────
+    day_trunc = func.date_trunc("day", TokenUsageRecord.created_at)
     daily_result = await session.exec(
         select(
-            func.date_trunc("day", TokenUsageRecord.created_at).label("day"),
+            day_trunc.label("day"),
             func.count(TokenUsageRecord.id).label("calls"),
             func.coalesce(func.sum(TokenUsageRecord.cost_usd), 0).label("cost"),
         )
         .where(TokenUsageRecord.created_at >= since)
-        .group_by(func.date_trunc("day", TokenUsageRecord.created_at))
-        .order_by(func.date_trunc("day", TokenUsageRecord.created_at))
+        .group_by(day_trunc)
+        .order_by(day_trunc)
     )
     daily = [
         DailyStat(
