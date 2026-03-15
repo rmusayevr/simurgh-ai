@@ -85,6 +85,13 @@ export const ProjectDetails = () => {
     const [savingTags, setSavingTags] = useState(false);
     const [tagSaveError, setTagSaveError] = useState<string | null>(null);
 
+    // ── Name / description editing state ──────────────────────────────────────
+    const [isEditingInfo, setIsEditingInfo] = useState(false);
+    const [editName, setEditName] = useState('');
+    const [editDescription, setEditDescription] = useState('');
+    const [savingInfo, setSavingInfo] = useState(false);
+    const [infoSaveError, setInfoSaveError] = useState<string | null>(null);
+
     // ── Active tab — derived from URL path ─────────────────────────────────────
     const activeTab = getActiveTabFromPath(location.pathname);
 
@@ -155,6 +162,41 @@ export const ProjectDetails = () => {
             setSavingTags(false);
         }
     }, [id, project, editTags, editTechStack]);
+
+    // ── Name / description handlers ────────────────────────────────────────────
+    const openInfoEdit = useCallback(() => {
+        if (!project) return;
+        setEditName(project.name);
+        setEditDescription(project.description ?? '');
+        setInfoSaveError(null);
+        setIsEditingInfo(true);
+    }, [project]);
+
+    const cancelInfoEdit = useCallback(() => {
+        setIsEditingInfo(false);
+        setInfoSaveError(null);
+    }, []);
+
+    const saveInfoEdit = useCallback(async () => {
+        if (!id || !project) return;
+        const name = editName.trim();
+        if (!name) { setInfoSaveError('Project name is required.'); return; }
+        setSavingInfo(true);
+        setInfoSaveError(null);
+        try {
+            const res = await api.patch<Project>(`/projects/${id}`, {
+                name,
+                description: editDescription.trim() || null,
+            });
+            setProject(res.data);
+            setIsEditingInfo(false);
+        } catch (err: unknown) {
+            const error = err as { response?: { data?: { detail?: string } }; message?: string };
+            setInfoSaveError(error?.response?.data?.detail || error?.message || 'Failed to save.');
+        } finally {
+            setSavingInfo(false);
+        }
+    }, [id, project, editName, editDescription]);
 
     // ── Stakeholder CRUD callbacks ─────────────────────────────────────────────
     const handleEdit = useCallback((person: Stakeholder) => {
@@ -229,8 +271,86 @@ export const ProjectDetails = () => {
 
                     <div className="flex justify-between items-start gap-4">
                         <div className="min-w-0 flex-1">
-                            <h1 className="text-3xl font-black text-slate-900 truncate">{project.name}</h1>
-                            <p className="text-slate-500 max-w-2xl mt-1">{project.description || 'No description provided.'}</p>
+                            {/* ── Name / description display / edit ── */}
+                            {isEditingInfo ? (
+                                <div className="space-y-3 max-w-2xl">
+                                    <div>
+                                        <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">
+                                            Project Name <span className="text-red-400">*</span>
+                                        </label>
+                                        <input
+                                            autoFocus
+                                            className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-xl text-slate-900 placeholder:text-slate-400"
+                                            value={editName}
+                                            onChange={e => setEditName(e.target.value)}
+                                            maxLength={200}
+                                            onKeyDown={e => { if (e.key === 'Escape') cancelInfoEdit(); }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-black text-slate-500 uppercase tracking-wider mb-1.5">
+                                            Description <span className="text-slate-400 font-medium normal-case">(optional)</span>
+                                        </label>
+                                        <textarea
+                                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none h-24 resize-none transition-all text-sm text-slate-700 placeholder:text-slate-400"
+                                            placeholder="Brief context about the goals and scope of this project..."
+                                            value={editDescription}
+                                            onChange={e => setEditDescription(e.target.value)}
+                                            maxLength={2000}
+                                            onKeyDown={e => { if (e.key === 'Escape') cancelInfoEdit(); }}
+                                        />
+                                    </div>
+                                    {infoSaveError && (
+                                        <p className="text-red-500 text-xs font-medium">{infoSaveError}</p>
+                                    )}
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            onClick={saveInfoEdit}
+                                            disabled={savingInfo || !editName.trim()}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition disabled:opacity-50"
+                                        >
+                                            {savingInfo
+                                                ? <Loader2 size={12} className="animate-spin" />
+                                                : <Check size={12} strokeWidth={3} />}
+                                            Save
+                                        </button>
+                                        <button
+                                            onClick={cancelInfoEdit}
+                                            disabled={savingInfo}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 text-slate-500 text-xs font-bold rounded-lg hover:bg-slate-100 transition disabled:opacity-50"
+                                        >
+                                            <X size={12} strokeWidth={3} /> Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="group/info">
+                                    <div className="flex items-center gap-2">
+                                        <h1 className="text-3xl font-black text-slate-900 truncate">{project.name}</h1>
+                                        {isOwnerOrAdmin && (
+                                            <button
+                                                onClick={openInfoEdit}
+                                                className="opacity-0 group-hover/info:opacity-100 flex items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-indigo-600 transition-all"
+                                                title="Edit name and description"
+                                            >
+                                                <Pencil size={12} />
+                                            </button>
+                                        )}
+                                    </div>
+                                    {project.description ? (
+                                        <p className="text-slate-500 max-w-2xl mt-1">{project.description}</p>
+                                    ) : isOwnerOrAdmin ? (
+                                        <button
+                                            onClick={openInfoEdit}
+                                            className="text-sm text-slate-400 hover:text-indigo-600 mt-1 transition-colors italic"
+                                        >
+                                            + Add a description
+                                        </button>
+                                    ) : (
+                                        <p className="text-slate-400 max-w-2xl mt-1 italic text-sm">No description provided.</p>
+                                    )}
+                                </div>
+                            )}
 
                             {/* ── Tag display / edit area ── */}
                             <div className="mt-4">
@@ -291,18 +411,24 @@ export const ProjectDetails = () => {
                                                 {tech}
                                             </span>
                                         ))}
-                                        {/* Empty state + edit button (owners/admins only) */}
-                                        {tagList.length === 0 && techList.length === 0 && isOwnerOrAdmin && (
-                                            <span className="text-xs text-slate-400">No tags yet.</span>
-                                        )}
-                                        {isOwnerOrAdmin && (
+
+                                        {/* Edit button — always visible to owners/admins */}
+                                        {isOwnerOrAdmin ? (
                                             <button
                                                 onClick={openTagEdit}
-                                                className="flex items-center gap-1 text-[11px] font-bold text-slate-400 hover:text-indigo-600 transition-colors ml-1"
+                                                className={`flex items-center gap-1 text-[11px] font-bold transition-colors ${tagList.length === 0 && techList.length === 0
+                                                        ? 'text-slate-400 bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 border border-dashed border-slate-300 hover:border-indigo-300 px-2.5 py-1 rounded-lg'
+                                                        : 'text-slate-400 hover:text-indigo-600 ml-1'
+                                                    }`}
                                                 title="Edit tags and tech stack"
                                             >
-                                                <Pencil size={11} /> Edit tags
+                                                <Pencil size={11} />
+                                                {tagList.length === 0 && techList.length === 0 ? 'Add tags' : 'Edit tags'}
                                             </button>
+                                        ) : (
+                                            tagList.length === 0 && techList.length === 0 && (
+                                                <span className="text-xs text-slate-400">No tags.</span>
+                                            )
                                         )}
                                     </div>
                                 )}
