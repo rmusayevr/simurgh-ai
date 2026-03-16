@@ -26,6 +26,15 @@ def _prop(id=PROP_ID, project_id=PID):
     p.task_documents = []
     p.created_at = datetime(2024, 1, 1)
     p.updated_at = datetime(2024, 1, 1)
+    # Export fields — must be None not MagicMock for ProposalRead validation
+    p.jira_epic_key = None
+    p.jira_epic_url = None
+    p.jira_project_key = None
+    p.jira_exported_at = None
+    p.confluence_page_id = None
+    p.confluence_page_url = None
+    p.confluence_space_key = None
+    p.confluence_exported_at = None
     return p
 
 

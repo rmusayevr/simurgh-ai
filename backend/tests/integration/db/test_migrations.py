@@ -140,7 +140,7 @@ _EXPECTED_TABLES = {
     "token_usage_records",
 }
 
-_HEAD_REVISION = "0004"
+_HEAD_REVISION = "0006"
 
 
 # ── Tests ──────────────────────────────────────────────────────────────────────
