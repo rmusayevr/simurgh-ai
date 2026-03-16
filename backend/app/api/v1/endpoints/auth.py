@@ -898,3 +898,81 @@ async def atlassian_disconnect(
     service = AtlassianOAuthService(session)
     await service.disconnect(current_user.id)
     return {"message": "Atlassian account disconnected."}
+
+
+# ==================== Atlassian Connect (Settings → Integrations) ====================
+# These endpoints attach Atlassian credentials to an ALREADY logged-in user.
+# Unlike the login flow, they do NOT create a new user or issue Simurgh tokens.
+
+
+@router.get("/atlassian/connect")
+async def atlassian_connect_init(
+    current_user: Annotated[User, Depends(get_current_user)],
+):
+    """
+    Return the Atlassian authorization URL for the connect flow.
+
+    Called via fetch() from the Settings page (with Authorization header),
+    returns a JSON URL that the frontend then navigates to.
+    """
+    if not settings.ATLASSIAN_CLIENT_ID:
+        raise BadRequestException("Atlassian OAuth is not configured on this server.")
+
+    state = f"connect_{current_user.id}_{secrets.token_urlsafe(16)}"
+    service = AtlassianOAuthService(None)
+
+    params = (
+        f"audience=api.atlassian.com"
+        f"&client_id={settings.ATLASSIAN_CLIENT_ID}"
+        f"&scope={'%20'.join(service.get_scopes())}"
+        f"&redirect_uri={settings.FRONTEND_URL}/auth/atlassian/connect/callback"
+        f"&state={state}"
+        f"&response_type=code"
+        f"&prompt=consent"
+    )
+    url = f"https://auth.atlassian.com/authorize?{params}"
+    return {"url": url}
+
+
+@router.post("/atlassian/connect/callback")
+async def atlassian_connect_callback(
+    code: str = Body(..., embed=True),
+    state: str = Body(..., embed=True),
+    current_user: Annotated[User, Depends(get_current_user)] = None,
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Complete the Atlassian connect flow for Settings → Integrations.
+
+    Stores encrypted credentials on the current user WITHOUT creating
+    a new account or issuing new Simurgh tokens.
+
+    Returns the connection status (site name, site URL).
+    """
+    log = logger.bind(operation="atlassian_connect_callback", user_id=current_user.id)
+
+    service = AtlassianOAuthService(session)
+
+    try:
+        exchange_data = await service.exchange_code(
+            code, redirect_suffix="/connect/callback"
+        )
+        await service.save_credential_for_user(current_user.id, exchange_data)
+
+        log.info(
+            "atlassian_connected",
+            user_id=current_user.id,
+            site=exchange_data.get("site_name"),
+        )
+
+        return {
+            "connected": True,
+            "site_name": exchange_data.get("site_name"),
+            "site_url": exchange_data.get("site_url"),
+        }
+
+    except BadRequestException:
+        raise
+    except Exception as e:
+        log.error("atlassian_connect_failed", error=str(e), error_type=type(e).__name__)
+        raise BadRequestException(f"Failed to connect Atlassian account: {str(e)}")

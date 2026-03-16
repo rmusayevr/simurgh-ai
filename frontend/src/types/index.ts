@@ -342,6 +342,14 @@ export interface Proposal {
     approved_at: string | null;
     variations: ProposalVariation[];
     task_documents: TaskDocument[];
+    jira_epic_key: string | null;
+    jira_epic_url: string | null;
+    jira_project_key: string | null;
+    jira_exported_at: string | null;
+    confluence_page_id: string | null;
+    confluence_page_url: string | null;
+    confluence_space_key: string | null;
+    confluence_exported_at: string | null;
     created_at: string;
     updated_at: string;
 }

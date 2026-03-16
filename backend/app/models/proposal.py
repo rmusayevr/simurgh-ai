@@ -264,6 +264,56 @@ class Proposal(SQLModel, table=True):
         description="Feedback for requested revision",
     )
 
+    # ==================== Jira Export ====================
+
+    jira_epic_key: Optional[str] = Field(
+        default=None,
+        max_length=50,
+        description="Jira epic key created from this proposal (e.g. PROJ-42)",
+    )
+
+    jira_epic_url: Optional[str] = Field(
+        default=None,
+        max_length=500,
+        description="Full URL to the Jira epic",
+    )
+
+    jira_project_key: Optional[str] = Field(
+        default=None,
+        max_length=20,
+        description="Jira project key used for export (e.g. PROJ)",
+    )
+
+    jira_exported_at: Optional[datetime] = Field(
+        default=None,
+        description="Timestamp of last Jira export",
+    )
+
+    # ==================== Confluence Export ====================
+
+    confluence_page_id: Optional[str] = Field(
+        default=None,
+        max_length=50,
+        description="Confluence page ID created from this proposal",
+    )
+
+    confluence_page_url: Optional[str] = Field(
+        default=None,
+        max_length=500,
+        description="Full URL to the Confluence page",
+    )
+
+    confluence_space_key: Optional[str] = Field(
+        default=None,
+        max_length=50,
+        description="Confluence space key used for export (e.g. ARCH)",
+    )
+
+    confluence_exported_at: Optional[datetime] = Field(
+        default=None,
+        description="Timestamp of last Confluence export",
+    )
+
     # ==================== Relationships ====================
 
     project: "Project" = Relationship(

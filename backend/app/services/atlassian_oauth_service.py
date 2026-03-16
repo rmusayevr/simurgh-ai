@@ -79,6 +79,10 @@ class AtlassianOAuthService:
 
     # ── Step 1: Authorization URL ─────────────────────────────────────────────
 
+    def get_scopes(self) -> list[str]:
+        """Return the list of OAuth scopes for use in authorization URLs."""
+        return ATLASSIAN_SCOPES
+
     def get_authorization_url(self, state: str) -> str:
         """
         Build the Atlassian OAuth authorization URL.
@@ -108,7 +112,9 @@ class AtlassianOAuthService:
 
     # ── Step 2: Exchange code for tokens ─────────────────────────────────────
 
-    async def exchange_code(self, code: str) -> dict:
+    async def exchange_code(
+        self, code: str, redirect_suffix: str = "/callback"
+    ) -> dict:
         """
         Exchange the authorization code for Atlassian access + refresh tokens.
 
@@ -141,7 +147,7 @@ class AtlassianOAuthService:
                     "client_id": settings.ATLASSIAN_CLIENT_ID,
                     "client_secret": settings.ATLASSIAN_CLIENT_SECRET.get_secret_value(),
                     "code": code,
-                    "redirect_uri": f"{settings.FRONTEND_URL}/auth/atlassian/callback",
+                    "redirect_uri": f"{settings.FRONTEND_URL}/auth/atlassian{redirect_suffix}",
                 },
                 headers={"Content-Type": "application/json"},
             )
@@ -152,9 +158,14 @@ class AtlassianOAuthService:
             expires_in = token_data.get("expires_in", 3600)  # seconds, default 1hr
 
             if not access_token:
+                error_desc = (
+                    token_data.get("error_description")
+                    or token_data.get("error")
+                    or str(token_data)
+                )
                 logger.warning("atlassian_token_exchange_failed", response=token_data)
                 raise BadRequestException(
-                    "Atlassian authorization failed. Please try again."
+                    f"Atlassian authorization failed: {error_desc}"
                 )
 
             auth_headers = {"Authorization": f"Bearer {access_token}"}
@@ -279,6 +290,24 @@ class AtlassianOAuthService:
         return user
 
     # ── Step 4: Issue Simurgh JWT tokens ─────────────────────────────────────
+
+    async def save_credential_for_user(self, user_id: int, exchange_data: dict) -> None:
+        """
+        Save Atlassian credentials on an existing user without touching their
+        Simurgh account. Used by the Settings -> Integrations connect flow.
+        """
+        user = await self.db.get(User, user_id)
+        if user:
+            atlassian_id = exchange_data.get("user_profile", {}).get("account_id")
+            if atlassian_id and not user.atlassian_id:
+                user.atlassian_id = atlassian_id
+            avatar_url = exchange_data.get("user_profile", {}).get("picture")
+            if avatar_url and not user.avatar_url:
+                user.avatar_url = avatar_url
+            self.db.add(user)
+
+        await self._upsert_credential(user_id, exchange_data)
+        await self.db.commit()
 
     async def issue_tokens(self, user: User) -> tuple[str, str]:
         """Issue Simurgh access + refresh tokens."""

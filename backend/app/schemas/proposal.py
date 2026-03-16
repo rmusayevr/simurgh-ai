@@ -141,6 +141,14 @@ class ProposalRead(BaseModel):
     approved_at: Optional[datetime]
     variations: List[ProposalVariationRead] = Field(default_factory=list)
     task_documents: List[TaskDocumentRead] = Field(default_factory=list)
+    jira_epic_key: Optional[str] = None
+    jira_epic_url: Optional[str] = None
+    jira_project_key: Optional[str] = None
+    jira_exported_at: Optional[datetime] = None
+    confluence_page_id: Optional[str] = None
+    confluence_page_url: Optional[str] = None
+    confluence_space_key: Optional[str] = None
+    confluence_exported_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

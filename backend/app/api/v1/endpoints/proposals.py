@@ -28,6 +28,7 @@ ROUTE ORDERING NOTE:
         /variations/... → before /{proposal_id}
 """
 
+from fastapi.params import Body
 import structlog
 from typing import Annotated, List, Optional
 
@@ -594,3 +595,264 @@ async def delete_proposal(
 
     logger.info("proposal_deleted", proposal_id=proposal_id)
     return None
+
+
+# ==================== Jira Export ====================
+
+
+@router.post("/{proposal_id}/export/jira")
+async def export_to_jira(
+    proposal_id: int,
+    jira_project_key: str = Body(..., embed=True),
+    current_user: Annotated[User, Depends(get_current_user)] = None,
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Export a proposal to Jira as an epic with child stories.
+
+    Uses the user's stored Atlassian OAuth credential automatically.
+    Falls back to JIRA_DEFAULT_* env vars for non-Atlassian-auth users.
+
+    The selected variation is exported. If no variation is selected,
+    the highest-confidence variation is used.
+
+    Args:
+        proposal_id:      Proposal to export
+        jira_project_key: Target Jira project key (e.g. "PROJ")
+
+    Returns:
+        dict: epic_key, epic_url, stories list
+    """
+    from app.services.jira_adapter import JiraAdapter
+
+    log = logger.bind(operation="export_jira", proposal_id=proposal_id)
+
+    proposal_service = ProposalService(session)
+    proposal = await proposal_service.get_by_id(proposal_id)
+
+    if not proposal.variations:
+        raise BadRequestException("Proposal has no generated variations to export.")
+
+    # Use selected variation, otherwise highest confidence
+    variation = None
+    if proposal.selected_variation_id:
+        variation = next(
+            (v for v in proposal.variations if v.id == proposal.selected_variation_id),
+            None,
+        )
+    if not variation:
+        variation = max(proposal.variations, key=lambda v: v.confidence_score)
+
+    adapter = JiraAdapter(db=session, user_id=current_user.id)
+
+    try:
+        result = await adapter.export_proposal(
+            proposal=proposal,
+            variation=variation,
+            jira_project_key=jira_project_key,
+        )
+        log.info("jira_export_success", epic_key=result["epic_key"])
+        return result
+
+    except BadRequestException:
+        raise
+    except Exception as e:
+        log.error("jira_export_failed", error=str(e))
+        raise BadRequestException(f"Jira export failed: {str(e)}")
+
+
+@router.get("/{proposal_id}/jira/status")
+async def get_jira_export_status(
+    proposal_id: int,
+    current_user: Annotated[User, Depends(get_current_user)] = None,
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Return the Jira export status for a proposal.
+
+    Used by the frontend to show the 'already exported' state.
+    """
+    proposal_service = ProposalService(session)
+    proposal = await proposal_service.get_by_id(proposal_id)
+
+    return {
+        "exported": proposal.jira_epic_key is not None,
+        "epic_key": proposal.jira_epic_key,
+        "epic_url": proposal.jira_epic_url,
+        "project_key": proposal.jira_project_key,
+        "exported_at": (
+            proposal.jira_exported_at.isoformat() if proposal.jira_exported_at else None
+        ),
+    }
+
+
+# ==================== Confluence Export ====================
+
+
+@router.post("/{proposal_id}/export/confluence")
+async def export_to_confluence(
+    proposal_id: int,
+    space_key: str = Body(..., embed=True),
+    preset: str = Body("internal_tech_review", embed=True),
+    parent_page_id: str = Body(None, embed=True),
+    current_user: Annotated[User, Depends(get_current_user)] = None,
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Export a proposal to Confluence as a structured page.
+
+    Three presets control content depth:
+        internal_tech_review  — Full: architecture, risks, trade-offs, reasoning
+        executive_presentation — Executive summary + risks + timeline only
+        public_documentation  — Architecture spec only, no internal data
+
+    The selected variation is used. Falls back to highest-confidence variation.
+
+    Args:
+        proposal_id:    Proposal to export
+        space_key:      Target Confluence space key (e.g. "ARCH")
+        preset:         Export preset name
+        parent_page_id: Optional parent page ID to nest the new page under
+    """
+    from app.services.confluence_adapter import ConfluenceAdapter, ExportPreset
+
+    log = logger.bind(operation="export_confluence", proposal_id=proposal_id)
+
+    # Validate preset
+    try:
+        export_preset = ExportPreset(preset)
+    except ValueError:
+        raise BadRequestException(
+            f"Invalid preset '{preset}'. "
+            f"Choose from: internal_tech_review, executive_presentation, public_documentation"
+        )
+
+    proposal_service = ProposalService(session)
+    proposal = await proposal_service.get_by_id(proposal_id)
+
+    if not proposal.variations:
+        raise BadRequestException("Proposal has no generated variations to export.")
+
+    variation = None
+    if proposal.selected_variation_id:
+        variation = next(
+            (v for v in proposal.variations if v.id == proposal.selected_variation_id),
+            None,
+        )
+    if not variation:
+        variation = max(proposal.variations, key=lambda v: v.confidence_score)
+
+    adapter = ConfluenceAdapter(db=session, user_id=current_user.id)
+
+    try:
+        result = await adapter.export_proposal(
+            proposal=proposal,
+            variation=variation,
+            space_key=space_key,
+            preset=export_preset,
+            parent_page_id=parent_page_id or None,
+        )
+        log.info("confluence_export_success", page_id=result["page_id"])
+        return result
+
+    except BadRequestException:
+        raise
+    except Exception as e:
+        log.error("confluence_export_failed", error=str(e))
+        raise BadRequestException(f"Confluence export failed: {str(e)}")
+
+
+@router.get("/{proposal_id}/confluence/status")
+async def get_confluence_export_status(
+    proposal_id: int,
+    current_user: Annotated[User, Depends(get_current_user)] = None,
+    session: AsyncSession = Depends(get_session),
+):
+    """Return Confluence export status for a proposal."""
+    proposal_service = ProposalService(session)
+    proposal = await proposal_service.get_by_id(proposal_id)
+
+    return {
+        "exported": proposal.confluence_page_id is not None,
+        "page_id": proposal.confluence_page_id,
+        "page_url": proposal.confluence_page_url,
+        "space_key": proposal.confluence_space_key,
+        "exported_at": (
+            proposal.confluence_exported_at.isoformat()
+            if proposal.confluence_exported_at
+            else None
+        ),
+    }
+
+
+# ==================== PDF Export ====================
+
+
+@router.get("/{proposal_id}/export/pdf")
+async def export_to_pdf(
+    proposal_id: int,
+    current_user: Annotated[User, Depends(get_current_user)] = None,
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Export the selected (or highest-confidence) proposal variation as a PDF.
+
+    Returns a downloadable PDF file with:
+      - Cover page: persona badge, task description, confidence score, metadata
+      - Architecture specification from the PRD (markdown rendered)
+      - Reasoning & trade-offs section
+      - Document information footer page
+
+    The PDF filename is sanitised from the proposal task description.
+    """
+    from fastapi.responses import Response
+    from app.services.pdf_generator import generate_proposal_pdf
+    from app.models.project import Project
+
+    log = logger.bind(operation="export_pdf", proposal_id=proposal_id)
+
+    proposal_service = ProposalService(session)
+    proposal = await proposal_service.get_by_id(proposal_id)
+
+    if not proposal.variations:
+        raise BadRequestException("Proposal has no generated variations to export.")
+
+    # Use selected variation, otherwise highest confidence
+    variation = None
+    if proposal.selected_variation_id:
+        variation = next(
+            (v for v in proposal.variations if v.id == proposal.selected_variation_id),
+            None,
+        )
+    if not variation:
+        variation = max(proposal.variations, key=lambda v: v.confidence_score)
+
+    # Fetch project name for the cover page
+    project = await session.get(Project, proposal.project_id)
+    project_name = project.name if project else f"Project {proposal.project_id}"
+
+    try:
+        pdf_bytes = generate_proposal_pdf(
+            proposal=proposal,
+            variation=variation,
+            project_name=project_name,
+        )
+    except Exception as e:
+        log.error("pdf_generation_failed", error=str(e))
+        raise BadRequestException(f"PDF generation failed: {str(e)}")
+
+    # Build a clean filename from the task description
+    import re as _re
+
+    safe_name = _re.sub(r"[^a-zA-Z0-9]+", "_", proposal.task_description[:50]).strip(
+        "_"
+    )
+    filename = f"SimurghAI_{safe_name}_{proposal_id}.pdf"
+
+    log.info("pdf_export_success", proposal_id=proposal_id, size=len(pdf_bytes))
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

@@ -28,6 +28,8 @@ import remarkGfm from 'remark-gfm';
 import { toast } from 'react-hot-toast';
 
 import { api } from '../api/client';
+import { JiraExportModal } from '../components/modals/JiraExportModal';
+import { ConfluenceExportModal } from '../components/modals/ConfluenceExportModal';
 import { debateApi } from '../api/client';
 import { ProposalStatus, AgentPersona } from '../types';
 import type { Proposal, ProposalVariation, ChatMessage, DebateTurn } from '../types';
@@ -304,6 +306,8 @@ const ProposalDetailPage: React.FC = () => {
     const [activePersona, setActivePersona] = useState<string>(AgentPersona.LEGACY_KEEPER);
     const [chatVariation, setChatVariation] = useState<ProposalVariation | null>(null);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [isJiraModalOpen, setIsJiraModalOpen] = useState(false);
+    const [isConfluenceModalOpen, setIsConfluenceModalOpen] = useState(false);
     const [isApproveOpen, setIsApproveOpen] = useState(false);
     const [isDiagramOpen, setIsDiagramOpen] = useState(false);
     const [confirmState, setConfirmState] = useState<{
@@ -488,6 +492,21 @@ const ProposalDetailPage: React.FC = () => {
                                         className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors disabled:opacity-50">
                                         {isDownloading ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />} PDF
                                     </button>
+                                    <button onClick={() => setIsJiraModalOpen(true)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-[#0052CC] hover:bg-[#0747A6] text-white rounded-lg text-xs font-bold transition-colors">
+                                        <svg width="12" height="12" viewBox="0 0 32 32" fill="none">
+                                            <path d="M15.271 13.219c-.379-.484-1.044-.452-1.44.065L8.073 21.7a.906.906 0 0 0 .729 1.453h6.891a.906.906 0 0 0 .74-.384c1.609-2.31 1.036-7.474-.162-9.55z" fill="currentColor" />
+                                            <path d="M15.938 3.26C13.108 7.484 13.264 12.72 15.31 16.7l3.332 6.073a.907.907 0 0 0 .794.477h6.891a.906.906 0 0 0 .73-1.452C26.35 21 16.826 4.633 16.826 4.633c-.213-.368-.619-.574-1.021-.514a.906.906 0 0 0-.867.141z" fill="currentColor" />
+                                        </svg>
+                                        Jira
+                                    </button>
+                                    <button onClick={() => setIsConfluenceModalOpen(true)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M11.53 2C6.29 2 2 6.29 2 11.53s4.29 9.53 9.53 9.53 9.53-4.29 9.53-9.53S16.77 2 11.53 2zm0 17.06A7.53 7.53 0 1 1 11.53 4a7.53 7.53 0 0 1 0 15.06zm3.54-9.53h-2.01V7.51a1.53 1.53 0 0 0-3.06 0v2.02H7.99a1.53 1.53 0 0 0 0 3.06h2.01v2.01a1.53 1.53 0 0 0 3.06 0V12.6h2.01a1.53 1.53 0 0 0 0-3.07z" />
+                                        </svg>
+                                        Confluence
+                                    </button>
                                 </>
                             )}
                         </div>
@@ -505,8 +524,8 @@ const ProposalDetailPage: React.FC = () => {
                                 key={id}
                                 onClick={() => setActiveTab(id)}
                                 className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition-colors -mb-px ${activeTab === id
-                                        ? 'border-cyan-600 text-cyan-600'
-                                        : 'border-transparent text-slate-400 hover:text-slate-700'
+                                    ? 'border-cyan-600 text-cyan-600'
+                                    : 'border-transparent text-slate-400 hover:text-slate-700'
                                     }`}
                             >
                                 <Icon size={14} /> {label}
@@ -733,6 +752,16 @@ const ProposalDetailPage: React.FC = () => {
                 type={confirmState.type}
                 onClose={() => setConfirmState(s => ({ ...s, isOpen: false }))}
                 onConfirm={() => { confirmState.onConfirm(); setConfirmState(s => ({ ...s, isOpen: false })); }} />
+            <JiraExportModal
+                proposalId={proposal?.id ?? 0}
+                isOpen={isJiraModalOpen}
+                onClose={() => setIsJiraModalOpen(false)}
+            />
+            <ConfluenceExportModal
+                proposalId={proposal?.id ?? 0}
+                isOpen={isConfluenceModalOpen}
+                onClose={() => setIsConfluenceModalOpen(false)}
+            />
         </>
     );
 };

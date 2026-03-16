@@ -2,12 +2,31 @@ import React, { useState, useEffect } from 'react';
 import { User, Lock, Save, Briefcase, Camera, AlertCircle, CheckCircle2, Download, Trash2, ShieldAlert, Link2, Link2Off, ExternalLink } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 export const Settings = () => {
     const { user, refreshProfile, logout } = useAuth();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'integrations' | 'data'>('profile');
+    const [searchParams] = useSearchParams();
+    const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'integrations' | 'data'>(() => {
+        return searchParams.get('tab') === 'integrations' ? 'integrations' : 'profile';
+    });
+
+    // Auto-load Atlassian status and show feedback when returning from connect flow
+    useEffect(() => {
+        if (searchParams.get('tab') === 'integrations') {
+            loadAtlassianStatus();
+            if (searchParams.get('connected') === '1') {
+                setMsg({ type: 'success', text: 'Atlassian account connected successfully.' });
+            } else if (searchParams.get('error') === '1') {
+                const msg = searchParams.get('msg');
+                setMsg({ type: 'error', text: msg ? `Connection failed: ${msg}` : 'Failed to connect Atlassian account. Please try again.' });
+            }
+            // Clean up URL params
+            navigate('/settings', { replace: true });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // Profile State
     const [profileForm, setProfileForm] = useState({
@@ -377,12 +396,19 @@ export const Settings = () => {
                                                 </button>
                                             </div>
                                         ) : (
-                                            <a
-                                                href="/api/v1/auth/atlassian"
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        const res = await api.get<{ url: string }>('/auth/atlassian/connect');
+                                                        window.location.href = res.data.url;
+                                                    } catch {
+                                                        setMsg({ type: 'error', text: 'Failed to initiate Atlassian connection.' });
+                                                    }
+                                                }}
                                                 className="flex items-center gap-2 px-4 py-2 bg-[#0052CC] hover:bg-[#0747A6] text-white text-xs font-bold rounded-lg transition-colors"
                                             >
                                                 <Link2 size={12} /> Connect
-                                            </a>
+                                            </button>
                                         )}
                                     </div>
 
