@@ -215,35 +215,85 @@ class ConfluenceAdapter:
         task = proposal.task_description
         confidence = variation.confidence_score
 
-        def _p(text: str) -> str:
-            """Wrap text in a paragraph tag, escaping special chars."""
-            safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-            return f"<p>{safe}</p>"
+        def _escape(text: str) -> str:
+            return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
-        def _section(title: str, body: str) -> str:
-            if not body.strip():
+        def _p(text: str) -> str:
+            return f"<p>{_escape(text)}</p>"
+
+        def _h2(title: str, content: str) -> str:
+            if not content.strip():
                 return ""
-            safe_body = (
-                body.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-            )
-            # Preserve line breaks
-            formatted = safe_body.replace("\n\n", "</p><p>").replace("\n", "<br/>")
-            return f"<h2>{title}</h2><p>{formatted}</p>"
+            safe = _escape(content).replace("\n\n", "</p><p>").replace("\n", "<br/>")
+            return f"<h2>{title}</h2><p>{safe}</p>"
+
+        def _h3(title: str, content: str) -> str:
+            if not content.strip():
+                return ""
+            safe = _escape(content).replace("\n\n", "</p><p>").replace("\n", "<br/>")
+            return f"<h3>{title}</h3><p>{safe}</p>"
 
         def _info_panel(text: str) -> str:
-            safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
             return (
                 f'<ac:structured-macro ac:name="info">'
-                f"<ac:rich-text-body><p>{safe}</p></ac:rich-text-body>"
+                f"<ac:rich-text-body><p>{_escape(text)}</p></ac:rich-text-body>"
                 f"</ac:structured-macro>"
             )
 
         def _note_panel(text: str) -> str:
-            safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
             return (
                 f'<ac:structured-macro ac:name="note">'
-                f"<ac:rich-text-body><p>{safe}</p></ac:rich-text-body>"
+                f"<ac:rich-text-body><p>{_escape(text)}</p></ac:rich-text-body>"
                 f"</ac:structured-macro>"
+            )
+
+        def _warning_panel(text: str) -> str:
+            return (
+                f'<ac:structured-macro ac:name="warning">'
+                f"<ac:rich-text-body><p>{_escape(text)}</p></ac:rich-text-body>"
+                f"</ac:structured-macro>"
+            )
+
+        def _code_block(code: str, language: str = "") -> str:
+            lang_attr = f' language="{language}"' if language else ""
+            return (
+                f'<ac:structured-macro ac:name="code">'
+                f'<ac:parameter ac:name="theme">Confluence</ac:parameter>'
+                f'<ac:parameter ac:name="collapse">{lang_attr}</ac:parameter>'
+                f"<ac:rich-text-body><pre><code>{_escape(code)}</code></pre></ac:rich-text-body>"
+                f"</ac:structured-macro>"
+            )
+
+        def _panel(title: str, content: str, panel_type: str = "info") -> str:
+            if not content.strip():
+                return ""
+            panel_func = {
+                "info": _info_panel,
+                "note": _note_panel,
+                "warning": _warning_panel,
+            }.get(panel_type, _info_panel)
+            return f"<h3>{title}</h3>{panel_func(content)}"
+
+        def _table_row(cells: list[str]) -> str:
+            cell_tags = "".join(f"<td>{_escape(c)}</td>" for c in cells)
+            return f"<tr>{cell_tags}</tr>"
+
+        def _table(headers: list[str], rows: list[list[str]]) -> str:
+            _table_row(headers)
+            body_rows = "".join(_table_row(row) for row in rows)
+            return (
+                "<table>"
+                f"<thead><tr>{''.join(f'<th>{_escape(h)}</th>' for h in headers)}</tr></thead>"
+                f"<tbody>{body_rows}</tbody>"
+                "</table>"
+            )
+
+        def _toc() -> str:
+            return (
+                '<ac:structured-macro ac:name="toc">'
+                '<ac:parameter ac:name="print">false</ac:parameter>'
+                '<ac:parameter ac:name="style">disc</ac:parameter>'
+                "</ac:structured-macro>"
             )
 
         # ── Header block (all presets) ────────────────────────────────────────
@@ -252,15 +302,95 @@ class ConfluenceAdapter:
             f"Confidence: {confidence}%"
         )
 
+        # Metadata table
+        metadata_rows = [
+            ["Persona", persona_name],
+            ["Confidence Score", f"{confidence}%"],
+            ["Task", task[:100] + ("..." if len(task) > 100 else "")],
+        ]
+        if proposal.jira_epic_key:
+            metadata_rows.append(
+                [
+                    "Jira Epic",
+                    f'<a href="{proposal.jira_epic_url}">{proposal.jira_epic_key}</a>',
+                ]
+            )
+        if proposal.approved_at and proposal.approval_status.value == "APPROVED":
+            metadata_rows.append(
+                ["Status", f"✅ APPROVED ({proposal.approved_at.strftime('%Y-%m-%d')})"]
+            )
+
+        metadata_table = _table(["Property", "Value"], metadata_rows)
+
         if preset == ExportPreset.PUBLIC_DOCUMENTATION:
-            # Architecture only — no persona, confidence, sentiment, or debate
             body = (
                 "<h1>Architecture Specification</h1>"
-                + _p(task)
-                + _section("Overview", sections["overview"])
-                + _section("Architecture", sections["architecture"])
-                + _section("Technology Stack", sections["tech_stack"])
-                + _section("Implementation Timeline", sections["timeline"])
+                + header
+                + "<h2>Metadata</h2>"
+                + metadata_table
+                + _h2("Overview", sections["overview"])
+                + _h2("Architecture", sections["architecture"])
+                + _h2("Technology Stack", sections["tech_stack"])
+                + _h2("Implementation Timeline", sections["timeline"])
+            )
+            return body
+
+        if preset == ExportPreset.EXECUTIVE_PRESENTATION:
+            body = (
+                "<h1>Architecture Proposal — Executive Summary</h1>"
+                + header
+                + "<h2>Metadata</h2>"
+                + metadata_table
+                + _h2("Executive Summary", sections["overview"])
+                + _h2("Key Risks", sections["risks"])
+                + _h2("Implementation Timeline", sections["timeline"])
+                + _note_panel(
+                    "Full technical detail available in the Internal Tech Review version."
+                )
+            )
+            return body
+
+        # INTERNAL_TECH_REVIEW — full content
+        body = (
+            "<h1>Architecture Proposal — Internal Tech Review</h1>"
+            + header
+            + "<h2>Metadata</h2>"
+            + metadata_table
+            + _h2("Executive Summary", sections["overview"])
+            + _h2("Architecture & Technical Approach", sections["architecture"])
+            + _h2("Technology Stack", sections["tech_stack"])
+            + _h2("Trade-offs", sections["trade_offs"] or sections["risks"])
+            + _h2("Risks", sections["risks"])
+            + _h2("Implementation Timeline", sections["timeline"])
+        )
+
+        # Append reasoning and trade-offs from variation
+        if variation.reasoning:
+            body += f"<h2>{persona_name} — Reasoning</h2><p>{_escape(variation.reasoning)}</p>"
+
+        if variation.trade_offs:
+            body += (
+                f"<h2>Identified Trade-offs</h2><p>{_escape(variation.trade_offs)}</p>"
+            )
+
+        return body
+
+        # ── Header block (all presets) ────────────────────────────────────────
+        header = _info_panel(
+            f"Generated by Simurgh AI | Persona: {persona_name} | "
+            f"Confidence: {confidence}%"
+        )
+
+        if preset == ExportPreset.PUBLIC_DOCUMENTATION:
+            body = (
+                "<h1>Architecture Specification</h1>"
+                + header
+                + "<h2>Metadata</h2>"
+                + metadata_table
+                + _h2("Overview", sections["overview"])
+                + _h2("Architecture", sections["architecture"])
+                + _h2("Technology Stack", sections["tech_stack"])
+                + _h2("Implementation Timeline", sections["timeline"])
             )
             return body
 
@@ -269,10 +399,11 @@ class ConfluenceAdapter:
             body = (
                 "<h1>Architecture Proposal — Executive Summary</h1>"
                 + header
-                + _p(f"Task: {task}")
-                + _section("Executive Summary", sections["overview"])
-                + _section("Key Risks", sections["risks"])
-                + _section("Implementation Timeline", sections["timeline"])
+                + "<h2>Metadata</h2>"
+                + metadata_table
+                + _h2("Executive Summary", sections["overview"])
+                + _h2("Key Risks", sections["risks"])
+                + _h2("Implementation Timeline", sections["timeline"])
                 + _note_panel(
                     "Full technical detail available in the Internal Tech Review version."
                 )
@@ -280,49 +411,27 @@ class ConfluenceAdapter:
             return body
 
         # INTERNAL_TECH_REVIEW — full content
-        approval_info = ""
-        if proposal.approved_at and proposal.approval_status.value == "APPROVED":
-            approval_info = _info_panel(
-                f"Status: APPROVED | Approved at: {proposal.approved_at.strftime('%Y-%m-%d %H:%M UTC')}"
-            )
-
-        jira_link = ""
-        if proposal.jira_epic_key and proposal.jira_epic_url:
-            jira_link = (
-                f'<p>Jira Epic: <a href="{proposal.jira_epic_url}">'
-                f"{proposal.jira_epic_key}</a></p>"
-            )
-
         body = (
             "<h1>Architecture Proposal — Internal Tech Review</h1>"
             + header
-            + approval_info
-            + _p(f"Task: {task}")
-            + jira_link
-            + _section("Executive Summary", sections["overview"])
-            + _section("Architecture & Technical Approach", sections["architecture"])
-            + _section("Technology Stack", sections["tech_stack"])
-            + _section("Trade-offs", sections["trade_offs"] or sections["risks"])
-            + _section("Risks", sections["risks"])
-            + _section("Implementation Timeline", sections["timeline"])
+            + "<h2>Metadata</h2>"
+            + metadata_table
+            + _h2("Executive Summary", sections["overview"])
+            + _h2("Architecture & Technical Approach", sections["architecture"])
+            + _h2("Technology Stack", sections["tech_stack"])
+            + _h2("Trade-offs", sections["trade_offs"] or sections["risks"])
+            + _h2("Risks", sections["risks"])
+            + _h2("Implementation Timeline", sections["timeline"])
         )
 
         # Append reasoning and trade-offs from variation
         if variation.reasoning:
-            safe_reasoning = (
-                variation.reasoning.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-            )
-            body += f"<h2>{persona_name} — Reasoning</h2><p>{safe_reasoning}</p>"
+            body += f"<h2>{persona_name} — Reasoning</h2><p>{_escape(variation.reasoning)}</p>"
 
         if variation.trade_offs:
-            safe_tradeoffs = (
-                variation.trade_offs.replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
+            body += (
+                f"<h2>Identified Trade-offs</h2><p>{_escape(variation.trade_offs)}</p>"
             )
-            body += f"<h2>Identified Trade-offs</h2><p>{safe_tradeoffs}</p>"
 
         return body
 
@@ -352,8 +461,9 @@ class ConfluenceAdapter:
         headers, base_url = await self._get_auth_headers()
         space_key = space_key.upper().strip()
 
-        # Validate space exists
-        await self.validate_space(space_key)
+        # Validate space exists and get space ID
+        space = await self.validate_space(space_key)
+        space_id = space.get("id")
 
         persona_name = variation.agent_persona.value.replace("_", " ").title()
         preset_label = PRESET_LABELS[preset]
@@ -367,23 +477,21 @@ class ConfluenceAdapter:
         body_storage = self._build_storage_format(proposal, variation, preset, sections)
 
         page_payload: dict = {
-            "type": "page",
+            "status": "current",
             "title": page_title,
-            "space": {"key": space_key},
+            "spaceId": space_id,
             "body": {
-                "storage": {
-                    "value": body_storage,
-                    "representation": "storage",
-                }
+                "representation": "storage",
+                "value": body_storage,
             },
         }
 
         if parent_page_id:
-            page_payload["ancestors"] = [{"id": parent_page_id}]
+            page_payload["parent"]["id"] = parent_page_id
 
         async with httpx.AsyncClient(timeout=20.0) as client:
             res = await client.post(
-                f"{base_url}/wiki/rest/api/content",
+                f"{base_url}/wiki/api/v2/pages",
                 headers=headers,
                 json=page_payload,
             )

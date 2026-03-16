@@ -66,6 +66,8 @@ ATLASSIAN_SCOPES = [
     "read:content:confluence",
     "write:content:confluence",
     "read:space-details:confluence",
+    "read:space:confluence",
+    "write:page:confluence",
     # Required for refresh tokens
     "offline_access",
 ]

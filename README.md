@@ -110,6 +110,66 @@ After a proposal is generated, open a direct chat with the AI persona that wrote
 - **Jira** — export approved proposals as epics and stories
 - **Confluence** — publish proposals directly to your team wiki
 
+### Atlassian Integration (Jira & Confluence)
+
+Simurgh AI integrates with Atlassian (Jira and Confluence) via OAuth 2.0. Users connect their Atlassian account once, and all exports use that connection automatically.
+
+#### Connecting Your Atlassian Account
+
+1. Go to **Settings → Integrations** in the Simurgh AI UI
+2. Click **Connect Atlassian**
+3. Authorize the application when redirected to Atlassian
+4. Once connected, you can export proposals to both Jira and Confluence
+
+The integration uses the following Atlassian OAuth scopes:
+
+| Scope | Purpose |
+|-------|---------|
+| `read:me` | User identity |
+| `read:jira-work`, `write:jira-work` | Jira issue access |
+| `read:confluence-content.all`, `write:confluence-content` | Confluence content |
+| `read:space:confluence`, `write:page:confluence` | Confluence spaces & pages |
+| `offline_access` | Refresh tokens for long-lived sessions |
+
+#### Confluence Export
+
+Export proposals to Confluence as formatted wiki pages. Three export presets are available:
+
+| Preset | Description | Use Case |
+|--------|-------------|----------|
+| **Internal Tech Review** | Full content — architecture, reasoning, trade-offs, risks, timeline | Engineering team, architects |
+| **Executive Presentation** | Summary only — overview, risks, timeline | CTO, product leadership |
+| **Public Documentation** | Architecture spec only — no sensitive data | External teams, vendors |
+
+**Features:**
+- Professional formatting with metadata tables, info panels, and structured headings
+- Links to Jira epics (if exported)
+- Approval status displayed
+- Persona and confidence score included
+
+#### Jira Export
+
+Export proposals to Jira as an Epic with linked Stories:
+
+| Issue Type | Content |
+|------------|---------|
+| **Epic** | Proposal title, task description, confidence score |
+| **Story: Architecture Overview** | Executive summary from the PRD |
+| **Story: Technical Approach** | Architecture section |
+| **Story: Risks & Trade-offs** | Identified risks |
+| **Story: Implementation Timeline** | Timeline section (if present) |
+
+Stories are automatically linked to the Epic using the project's Epic Link field.
+
+**Usage:**
+```bash
+# Export to Jira
+POST /api/v1/proposals/{id}/export/jira
+{"jira_project_key": "ARCH"}
+```
+
+**Note:** The Jira project must have Epic and Story issue types configured. The user needs Create issues permission in the target project.
+
 ---
 
 ## How the Council of Agents Works

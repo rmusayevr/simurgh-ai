@@ -164,6 +164,35 @@ class JiraAdapter:
         # Last resort: return the first available type
         return issue_types[0]["id"] if issue_types else None
 
+    # ── Epic Link field resolution ───────────────────────────────────────────────
+
+    async def _get_epic_link_field_id(
+        self, base_url: str, headers: dict, project_key: str
+    ) -> Optional[str]:
+        """
+        Get the custom field ID for the Epic Link field from Jira's create metadata.
+        """
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.get(
+                f"{base_url}/issue/createmeta/{project_key}/issuetypes",
+                headers=headers,
+            )
+
+        if not res.is_success:
+            return None
+
+        data = res.json()
+        issue_types = data.get("issueTypes", [])
+
+        for issue_type in issue_types:
+            fields = issue_type.get("fields", {})
+            for field_id, field_info in fields.items():
+                field_name = field_info.get("name", "").lower()
+                if "epic link" in field_name or "parent" in field_name:
+                    return field_id
+
+        return None
+
     # ── PRD section extraction ────────────────────────────────────────────────
 
     def _extract_prd_sections(self, prd_markdown: str) -> dict:
@@ -262,6 +291,9 @@ class JiraAdapter:
         )
         story_type_id = await self._get_issue_type_id(
             base_url, headers, project_key, "story"
+        )
+        epic_link_field_id = await self._get_epic_link_field_id(
+            base_url, headers, project_key
         )
 
         persona_name = variation.agent_persona.value.replace("_", " ").title()
@@ -372,10 +404,8 @@ class JiraAdapter:
                 }
 
                 # Link to epic if the project supports it
-                try:
-                    story_payload["fields"]["customfield_10014"] = epic_key  # Epic Link
-                except Exception:
-                    pass
+                if epic_link_field_id:
+                    story_payload["fields"][epic_link_field_id] = epic_key
 
                 story_res = await client.post(
                     f"{base_url}/issue",
@@ -398,6 +428,7 @@ class JiraAdapter:
                         "jira_story_creation_failed",
                         story_title=story_title,
                         status=story_res.status_code,
+                        error=story_res.text[:500],
                     )
 
         # ── 3. Persist epic key on the proposal ──────────────────────────────
