@@ -255,13 +255,9 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: Optional[str] = None
     GOOGLE_CLIENT_SECRET: Optional[SecretStr] = None
 
-    # ==================== Integrations (Fallback Defaults) ====================
-    # Per-project integration configs are stored in DB (IntegrationConfig model)
-    # These serve as system-wide defaults only
-
-    JIRA_DEFAULT_INSTANCE_URL: Optional[str] = None
-    JIRA_DEFAULT_USER_EMAIL: Optional[str] = None
-    JIRA_DEFAULT_API_TOKEN: Optional[SecretStr] = None
+    # ==================== Atlassian OAuth ====================
+    ATLASSIAN_CLIENT_ID: Optional[str] = None
+    ATLASSIAN_CLIENT_SECRET: Optional[SecretStr] = None
 
     # ==================== Rate Limiting ====================
     RATE_LIMIT_ENABLED: bool = True

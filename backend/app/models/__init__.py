@@ -28,6 +28,7 @@ from app.models.links import ProjectStakeholderLink, ProjectRole  # noqa: F401
 
 from app.models.token import RefreshToken  # noqa: F401
 from app.models.user import User, UserRole  # noqa: F401
+from app.models.atlassian_credential import AtlassianCredential  # noqa: F401
 from app.models.project import (  # noqa: F401
     Project,
     HistoricalDocument,
@@ -100,6 +101,7 @@ __all__ = [
     "RefreshToken",
     "User",
     "UserRole",
+    "AtlassianCredential",
     # --- Project Models ---
     "Project",
     "ProjectVisibility",

@@ -21,6 +21,7 @@ from app.models.links import ProjectStakeholderLink
 if TYPE_CHECKING:
     from app.models.project import Project
     from app.models.token import RefreshToken
+    from app.models.atlassian_credential import AtlassianCredential
 
 
 # ==================== Enums ====================
@@ -193,6 +194,14 @@ class User(SQLModel, table=True):
         description="Google user ID (sub) for OAuth login",
     )
 
+    atlassian_id: Optional[str] = Field(
+        default=None,
+        max_length=100,
+        unique=True,
+        index=True,
+        description="Atlassian account ID for OAuth login",
+    )
+
     oauth_provider: Optional[str] = Field(
         default=None,
         max_length=20,
@@ -252,14 +261,14 @@ class User(SQLModel, table=True):
         },
     )
 
-    # collaborated_projects: List["Project"] = Relationship(
-    #     back_populates="members",
-    #     link_model=ProjectStakeholderLink,
-    #     sa_relationship_kwargs={
-    #         "lazy": "selectin",
-    #         "overlaps": "stakeholder_links",
-    #     },
-    # )
+    atlassian_credential: Optional["AtlassianCredential"] = Relationship(
+        back_populates="user",
+        sa_relationship_kwargs={
+            "lazy": "selectin",
+            "cascade": "all, delete-orphan",
+            "uselist": False,
+        },
+    )
 
     stakeholder_links: List["ProjectStakeholderLink"] = Relationship(
         back_populates="user",

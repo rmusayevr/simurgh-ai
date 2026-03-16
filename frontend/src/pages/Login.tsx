@@ -22,6 +22,10 @@ export const Login = () => {
         window.location.href = '/api/v1/auth/google';
     };
 
+    const handleAtlassianLogin = () => {
+        window.location.href = '/api/v1/auth/atlassian';
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError('');
@@ -83,6 +87,24 @@ export const Login = () => {
                                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                             </svg>
                             Continue with Google
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handleAtlassianLogin}
+                            className="w-full flex items-center justify-center gap-3 bg-[#0052CC] hover:bg-[#0747A6] text-white font-bold py-3 rounded-xl transition-all"
+                        >
+                            <svg width="18" height="18" viewBox="0 0 32 32" fill="none">
+                                <path d="M15.271 13.219c-.379-.484-1.044-.452-1.44.065L8.073 21.7a.906.906 0 0 0 .729 1.453h6.891a.906.906 0 0 0 .74-.384c1.609-2.31 1.036-7.474-.162-9.55z" fill="#2684FF" />
+                                <path d="M15.938 3.26C13.108 7.484 13.264 12.72 15.31 16.7l3.332 6.073a.907.907 0 0 0 .794.477h6.891a.906.906 0 0 0 .73-1.452C26.35 21 16.826 4.633 16.826 4.633c-.213-.368-.619-.574-1.021-.514a.906.906 0 0 0-.867.141z" fill="url(#atlassian_grad)" />
+                                <defs>
+                                    <linearGradient id="atlassian_grad" x1="24.906" y1="4.37" x2="18.234" y2="16.044" gradientUnits="userSpaceOnUse">
+                                        <stop stop-color="#0052CC" />
+                                        <stop offset="1" stop-color="#2684FF" />
+                                    </linearGradient>
+                                </defs>
+                            </svg>
+                            Continue with Atlassian
                         </button>
 
                         <div className="flex items-center gap-3">

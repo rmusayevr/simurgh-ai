@@ -49,6 +49,7 @@ from app.services.user_service import UserService
 from app.services.system_service import SystemService
 from app.services.github_oauth_service import GitHubOAuthService
 from app.services.google_oauth_service import GoogleOAuthService
+from app.services.atlassian_oauth_service import AtlassianOAuthService
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -800,3 +801,100 @@ async def google_callback(
     except Exception as e:
         log.error("google_oauth_failed", error=str(e))
         raise BadRequestException("Google authentication failed. Please try again.")
+
+
+# ==================== Atlassian OAuth ====================
+
+
+@router.get("/atlassian", response_model=None)
+async def atlassian_login():
+    """
+    Initiate Atlassian OAuth flow (3LO).
+
+    Redirects the user to Atlassian's authorization page.
+    Scopes cover both Jira and Confluence read/write.
+    """
+    from fastapi.responses import RedirectResponse
+
+    if not settings.ATLASSIAN_CLIENT_ID:
+        raise BadRequestException("Atlassian OAuth is not configured on this server.")
+
+    state = secrets.token_urlsafe(32)
+    service = AtlassianOAuthService(None)
+    url = service.get_authorization_url(state)
+    return RedirectResponse(url)
+
+
+@router.post("/atlassian/callback", response_model=Token)
+async def atlassian_callback(
+    code: str = Body(..., embed=True),
+    state: str = Body(..., embed=True),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Complete the Atlassian OAuth flow.
+
+    Exchanges the code, stores encrypted credentials, returns Simurgh tokens.
+    """
+    log = logger.bind(operation="atlassian_callback")
+
+    service = AtlassianOAuthService(session)
+
+    try:
+        exchange_data = await service.exchange_code(code)
+        user = await service.get_or_create_user(exchange_data)
+        access_token, refresh_token = await service.issue_tokens(user)
+
+        log.info("atlassian_oauth_completed", user_id=user.id)
+
+        return Token(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
+        )
+
+    except BadRequestException:
+        raise
+    except Exception as e:
+        log.error("atlassian_oauth_failed", error=str(e))
+        raise BadRequestException("Atlassian authentication failed. Please try again.")
+
+
+@router.get("/atlassian/status")
+async def atlassian_connection_status(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Return the current user's Atlassian connection status.
+
+    Used by the Settings page to show/hide the Connect/Disconnect button.
+    """
+    service = AtlassianOAuthService(session)
+    cred = await service.get_credential(current_user.id)
+
+    if not cred:
+        return {"connected": False}
+
+    return {
+        "connected": True,
+        "site_name": cred.site_name,
+        "site_url": cred.site_url,
+        "scopes": cred.scope_list,
+        "token_expires_at": cred.token_expires_at.isoformat(),
+    }
+
+
+@router.delete("/atlassian/disconnect")
+async def atlassian_disconnect(
+    current_user: Annotated[User, Depends(get_current_user)],
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Disconnect the current user's Atlassian account.
+
+    Removes stored credentials and unlinks atlassian_id from user.
+    """
+    service = AtlassianOAuthService(session)
+    await service.disconnect(current_user.id)
+    return {"message": "Atlassian account disconnected."}

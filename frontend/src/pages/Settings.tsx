@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Lock, Save, Briefcase, Camera, AlertCircle, CheckCircle2, Download, Trash2, ShieldAlert } from 'lucide-react';
+import { User, Lock, Save, Briefcase, Camera, AlertCircle, CheckCircle2, Download, Trash2, ShieldAlert, Link2, Link2Off, ExternalLink } from 'lucide-react';
 import { api } from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 export const Settings = () => {
     const { user, refreshProfile, logout } = useAuth();
     const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'data'>('profile');
+    const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'integrations' | 'data'>('profile');
 
     // Profile State
     const [profileForm, setProfileForm] = useState({
@@ -31,6 +31,35 @@ export const Settings = () => {
     const [loading, setLoading] = useState(false);
     const [exportLoading, setExportLoading] = useState(false);
     const [msg, setMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+    // Atlassian connection state
+    const [atlassianStatus, setAtlassianStatus] = useState<{
+        connected: boolean;
+        site_name?: string;
+        site_url?: string;
+    } | null>(null);
+    const [atlassianLoading, setAtlassianLoading] = useState(false);
+
+    const loadAtlassianStatus = async () => {
+        try {
+            const res = await api.get('/auth/atlassian/status');
+            setAtlassianStatus(res.data);
+        } catch {
+            setAtlassianStatus({ connected: false });
+        }
+    };
+
+    const handleAtlassianDisconnect = async () => {
+        setAtlassianLoading(true);
+        try {
+            await api.delete('/auth/atlassian/disconnect');
+            setAtlassianStatus({ connected: false });
+        } catch {
+            setMsg({ type: 'error', text: 'Failed to disconnect Atlassian account.' });
+        } finally {
+            setAtlassianLoading(false);
+        }
+    };
 
     useEffect(() => {
         if (user) {
@@ -142,7 +171,7 @@ export const Settings = () => {
         }
     };
 
-    const switchTab = (tab: 'profile' | 'security' | 'data') => {
+    const switchTab = (tab: 'profile' | 'security' | 'integrations' | 'data') => {
         setActiveTab(tab);
         setMsg(null);
         setShowDeleteSection(false);
@@ -161,6 +190,7 @@ export const Settings = () => {
                         {([
                             { id: 'profile', label: 'Profile', icon: <User size={18} /> },
                             { id: 'security', label: 'Security', icon: <Lock size={18} /> },
+                            { id: 'integrations', label: 'Integrations', icon: <Link2 size={18} /> },
                             { id: 'data', label: 'Data & Privacy', icon: <ShieldAlert size={18} /> },
                         ] as const).map(tab => (
                             <button
@@ -299,6 +329,79 @@ export const Settings = () => {
                                     </button>
                                 </div>
                             </form>
+                        )}
+
+                        {/* ── Integrations Tab ── */}
+                        {activeTab === 'integrations' && (
+                            <div className="animate-in fade-in slide-in-from-bottom-2 duration-300 space-y-6" onMouseEnter={loadAtlassianStatus}>
+                                <div>
+                                    <h2 className="text-lg font-black text-slate-900 mb-1">Integrations</h2>
+                                    <p className="text-sm text-slate-500">Connect third-party services to unlock Jira and Confluence export.</p>
+                                </div>
+
+                                {/* Atlassian card */}
+                                <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                                    <div className="flex items-center justify-between px-6 py-5 bg-slate-50/50">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-10 h-10 rounded-xl bg-[#0052CC] flex items-center justify-center shrink-0">
+                                                <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
+                                                    <path d="M15.271 13.219c-.379-.484-1.044-.452-1.44.065L8.073 21.7a.906.906 0 0 0 .729 1.453h6.891a.906.906 0 0 0 .74-.384c1.609-2.31 1.036-7.474-.162-9.55z" fill="#2684FF" />
+                                                    <path d="M15.938 3.26C13.108 7.484 13.264 12.72 15.31 16.7l3.332 6.073a.907.907 0 0 0 .794.477h6.891a.906.906 0 0 0 .73-1.452C26.35 21 16.826 4.633 16.826 4.633c-.213-.368-.619-.574-1.021-.514a.906.906 0 0 0-.867.141z" fill="#2684FF" />
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <p className="font-bold text-slate-900">Atlassian</p>
+                                                <p className="text-xs text-slate-500">Jira + Confluence export</p>
+                                            </div>
+                                        </div>
+
+                                        {atlassianStatus === null ? (
+                                            <button
+                                                onClick={loadAtlassianStatus}
+                                                className="text-xs font-bold text-cyan-600 hover:text-cyan-700"
+                                            >
+                                                Check status
+                                            </button>
+                                        ) : atlassianStatus.connected ? (
+                                            <div className="flex items-center gap-3">
+                                                <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1.5 rounded-lg">
+                                                    <Link2 size={12} /> Connected
+                                                </span>
+                                                <button
+                                                    onClick={handleAtlassianDisconnect}
+                                                    disabled={atlassianLoading}
+                                                    className="flex items-center gap-1.5 text-xs font-bold text-red-500 hover:text-red-700 transition-colors disabled:opacity-50"
+                                                >
+                                                    <Link2Off size={12} />
+                                                    {atlassianLoading ? 'Disconnecting...' : 'Disconnect'}
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <a
+                                                href="/api/v1/auth/atlassian"
+                                                className="flex items-center gap-2 px-4 py-2 bg-[#0052CC] hover:bg-[#0747A6] text-white text-xs font-bold rounded-lg transition-colors"
+                                            >
+                                                <Link2 size={12} /> Connect
+                                            </a>
+                                        )}
+                                    </div>
+
+                                    {atlassianStatus?.connected && atlassianStatus.site_name && (
+                                        <div className="px-6 py-4 border-t border-slate-100 flex items-center gap-2 text-xs text-slate-500">
+                                            <span>Connected to</span>
+                                            <a
+                                                href={atlassianStatus.site_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="font-bold text-slate-700 hover:text-cyan-600 flex items-center gap-1"
+                                            >
+                                                {atlassianStatus.site_name}
+                                                <ExternalLink size={11} />
+                                            </a>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         )}
 
                         {/* ── Data & Privacy Tab ── */}
