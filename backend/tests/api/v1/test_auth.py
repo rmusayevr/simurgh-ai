@@ -182,7 +182,7 @@ class TestChangePassword:
             UserService, "change_password", new=AsyncMock(return_value=None)
         ):
             resp = await user_client.post(
-                f"{BASE}/change-password",
+                f"{BASE}/me/change-password",
                 json={
                     "current_password": "OldPass1!",
                     "new_password": "NewPass1!",
@@ -193,7 +193,7 @@ class TestChangePassword:
 
     async def test_change_password_requires_auth(self, client):
         resp = await client.post(
-            f"{BASE}/change-password",
+            f"{BASE}/me/change-password",
             json={
                 "current_password": "A",
                 "new_password": "B",
