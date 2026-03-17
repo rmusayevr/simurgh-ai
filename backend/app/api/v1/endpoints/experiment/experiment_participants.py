@@ -204,9 +204,7 @@ async def get_participant_detail(
             "is_completed": participant.is_completed,
             "duration_minutes": (
                 round(
-                    (
-                        participant.completed_at - participant.created_at
-                    ).total_seconds()
+                    (participant.completed_at - participant.created_at).total_seconds()
                     / 60,
                     1,
                 )
