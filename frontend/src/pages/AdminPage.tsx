@@ -133,8 +133,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ currentUser, onLogout, onB
     };
 
     const filteredUsers = users.filter(u =>
-        u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        u.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
+        u?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        u?.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     if (loading) {

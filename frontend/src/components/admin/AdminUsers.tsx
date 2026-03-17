@@ -359,7 +359,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({
                                                     ? 'bg-cyan-600 text-white ring-cyan-100'
                                                     : 'bg-slate-100 text-slate-600 ring-slate-50'
                                                     }`}>
-                                                    {user.full_name?.charAt(0) || user.email.charAt(0).toUpperCase()}
+                                                    {user.full_name?.charAt(0) || user.email?.charAt(0)?.toUpperCase() || '?'}
                                                     {isSelf && (
                                                         <span className="absolute -top-1 -right-1 bg-emerald-500 text-[8px] px-1 rounded-full ring-2 ring-white">
                                                             YOU
