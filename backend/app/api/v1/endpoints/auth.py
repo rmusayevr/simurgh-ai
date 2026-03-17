@@ -523,7 +523,7 @@ async def export_my_data(
 # ==================== Password Management ====================
 
 
-@router.post("/change-password", response_model=Message)
+@router.post("/me/change-password", response_model=Message)
 async def change_password(
     request: ChangePasswordRequest,
     current_user: Annotated[User, Depends(get_current_user)],
