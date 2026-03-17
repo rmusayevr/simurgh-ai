@@ -457,7 +457,8 @@ class TestGetParticipantDetail:
             async with ac as c:
                 resp = await c.get(f"{BASE}/participants/1")
             qs = resp.json()["questionnaires"]
-            assert len(qs) == 2
+            assert len(qs["baseline"]) == 1
+            assert len(qs["multiagent"]) == 1
         finally:
             await _cleanup(app)
 
