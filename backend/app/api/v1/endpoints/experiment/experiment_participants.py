@@ -175,6 +175,44 @@ async def get_participant_detail(
     survey_stmt = select(ExitSurvey).where(ExitSurvey.participant_id == participant_id)
     survey_result = (await session.exec(survey_stmt)).first()
 
+    baseline_qs = [
+        q for q in questionnaires if q.condition == ExperimentCondition.BASELINE
+    ]
+    multiagent_qs = [
+        q for q in questionnaires if q.condition == ExperimentCondition.MULTIAGENT
+    ]
+
+    def _serialize_questionnaire(q: QuestionnaireResponse) -> dict:
+        return {
+            "response_id": str(q.id),
+            "condition": q.condition.value,
+            "scenario_id": q.scenario_id,
+            "order_in_session": q.order_in_session,
+            "mean_score": round(q.mean_score, 3),
+            "likert_scores": {
+                "trust_overall": q.trust_overall,
+                "risk_awareness": q.risk_awareness,
+                "technical_soundness": q.technical_soundness,
+                "balance": q.balance,
+                "actionability": q.actionability,
+                "completeness": q.completeness,
+            },
+            "open_ended": {
+                "strengths": q.strengths,
+                "concerns": q.concerns,
+                "trust_reasoning": q.trust_reasoning,
+                "persona_consistency": q.persona_consistency,
+                "debate_value": q.debate_value,
+                "most_convincing_persona": q.most_convincing_persona,
+            },
+            "metadata": {
+                "time_to_complete_seconds": q.time_to_complete_seconds,
+                "is_valid": q.is_valid,
+                "quality_note": q.quality_note,
+                "submitted_at": q.submitted_at.isoformat(),
+            },
+        }
+
     return {
         "participant_id": participant.id,
         "user": {
@@ -212,38 +250,15 @@ async def get_participant_detail(
                 else None
             ),
         },
-        "questionnaires": [
-            {
-                "response_id": str(q.id),
-                "condition": q.condition.value,
-                "scenario_id": q.scenario_id,
-                "order_in_session": q.order_in_session,
-                "mean_score": round(q.mean_score, 3),
-                "likert_scores": {
-                    "trust_overall": q.trust_overall,
-                    "risk_awareness": q.risk_awareness,
-                    "technical_soundness": q.technical_soundness,
-                    "balance": q.balance,
-                    "actionability": q.actionability,
-                    "completeness": q.completeness,
-                },
-                "open_ended": {
-                    "strengths": q.strengths,
-                    "concerns": q.concerns,
-                    "trust_reasoning": q.trust_reasoning,
-                    "persona_consistency": q.persona_consistency,
-                    "debate_value": q.debate_value,
-                    "most_convincing_persona": q.most_convincing_persona,
-                },
-                "metadata": {
-                    "time_to_complete_seconds": q.time_to_complete_seconds,
-                    "is_valid": q.is_valid,
-                    "quality_note": q.quality_note,
-                    "submitted_at": q.submitted_at.isoformat(),
-                },
-            }
-            for q in questionnaires
-        ],
+        "questionnaires": {
+            "baseline": [_serialize_questionnaire(q) for q in baseline_qs],
+            "multiagent": [_serialize_questionnaire(q) for q in multiagent_qs],
+            "within_subject_difference": (
+                round(multiagent_qs[0].mean_score - baseline_qs[0].mean_score, 3)
+                if len(multiagent_qs) > 0 and len(baseline_qs) > 0
+                else None
+            ),
+        },
         "exit_survey": (
             {
                 "survey_id": str(survey_result.id),
