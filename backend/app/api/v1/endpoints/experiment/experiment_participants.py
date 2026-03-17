@@ -176,45 +176,43 @@ async def get_participant_detail(
     survey_result = (await session.exec(survey_stmt)).first()
 
     return {
-        "participant": {
-            "id": participant.id,
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "full_name": user.full_name,
-            },
-            "demographics": {
-                "experience_level": participant.experience_level.value,
-                "years_experience": participant.years_experience,
-                "familiarity_with_ai": participant.familiarity_with_ai,
-            },
-            "experiment": {
-                "assigned_condition_order": participant.assigned_condition_order.value,
-                "consent_given": participant.consent_given,
-                "consent_timestamp": (
-                    participant.consent_timestamp.isoformat()
-                    if participant.consent_timestamp
-                    else None
-                ),
-                "registered_at": participant.created_at.isoformat(),
-                "completed_at": (
-                    participant.completed_at.isoformat()
-                    if participant.completed_at
-                    else None
-                ),
-                "is_completed": participant.is_completed,
-                "duration_minutes": (
-                    round(
-                        (
-                            participant.completed_at - participant.created_at
-                        ).total_seconds()
-                        / 60,
-                        1,
-                    )
-                    if participant.completed_at
-                    else None
-                ),
-            },
+        "participant_id": participant.id,
+        "user": {
+            "id": user.id if user else participant.user_id,
+            "email": user.email if user else None,
+            "full_name": user.full_name if user else None,
+        },
+        "demographics": {
+            "experience_level": participant.experience_level.value,
+            "years_experience": participant.years_experience,
+            "familiarity_with_ai": participant.familiarity_with_ai,
+        },
+        "experiment": {
+            "assigned_condition_order": participant.assigned_condition_order.value,
+            "consent_given": participant.consent_given,
+            "consent_timestamp": (
+                participant.consent_timestamp.isoformat()
+                if participant.consent_timestamp
+                else None
+            ),
+            "registered_at": participant.created_at.isoformat(),
+            "completed_at": (
+                participant.completed_at.isoformat()
+                if participant.completed_at
+                else None
+            ),
+            "is_completed": participant.is_completed,
+            "duration_minutes": (
+                round(
+                    (
+                        participant.completed_at - participant.created_at
+                    ).total_seconds()
+                    / 60,
+                    1,
+                )
+                if participant.completed_at
+                else None
+            ),
         },
         "questionnaires": [
             {
@@ -223,7 +221,7 @@ async def get_participant_detail(
                 "scenario_id": q.scenario_id,
                 "order_in_session": q.order_in_session,
                 "mean_score": round(q.mean_score, 3),
-                "likert": {
+                "likert_scores": {
                     "trust_overall": q.trust_overall,
                     "risk_awareness": q.risk_awareness,
                     "technical_soundness": q.technical_soundness,
@@ -239,28 +237,26 @@ async def get_participant_detail(
                     "debate_value": q.debate_value,
                     "most_convincing_persona": q.most_convincing_persona,
                 },
-                "is_valid": q.is_valid,
-                "quality_note": q.quality_note,
-                "submitted_at": q.submitted_at.isoformat(),
+                "metadata": {
+                    "time_to_complete_seconds": q.time_to_complete_seconds,
+                    "is_valid": q.is_valid,
+                    "quality_note": q.quality_note,
+                    "submitted_at": q.submitted_at.isoformat(),
+                },
             }
             for q in questionnaires
         ],
         "exit_survey": (
             {
                 "survey_id": str(survey_result.id),
-                "preference": {
-                    "raw": survey_result.preferred_system.value,
-                    "actual": survey_result.preferred_system_actual,
-                    "reasoning": survey_result.preference_reasoning,
-                    "has_clear_preference": survey_result.has_clear_preference,
-                },
-                "ratings": {
-                    "interface_rating": survey_result.interface_rating,
-                    "experienced_fatigue": survey_result.experienced_fatigue.value,
-                    "technical_issues": survey_result.technical_issues,
-                    "additional_feedback": survey_result.additional_feedback,
-                    "submitted_at": survey_result.submitted_at.isoformat(),
-                },
+                "preferred_system_raw": survey_result.preferred_system.value,
+                "preferred_system_actual": survey_result.preferred_system_actual,
+                "preference_reasoning": survey_result.preference_reasoning,
+                "interface_rating": survey_result.interface_rating,
+                "experienced_fatigue": survey_result.experienced_fatigue.value,
+                "technical_issues": survey_result.technical_issues,
+                "additional_feedback": survey_result.additional_feedback,
+                "submitted_at": survey_result.submitted_at.isoformat(),
             }
             if survey_result
             else None

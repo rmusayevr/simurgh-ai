@@ -410,8 +410,8 @@ class TestGetParticipantDetail:
                 resp = await c.get(f"{BASE}/participants/1")
             assert resp.status_code == 200
             data = resp.json()
-            assert data["participant"]["id"] == 1
-            assert data["participant"]["user"]["email"] == "detail@example.com"
+            assert data["participant_id"] == 1
+            assert data["user"]["email"] == "detail@example.com"
             assert "questionnaires" in data
             assert "exit_survey" in data
         finally:
